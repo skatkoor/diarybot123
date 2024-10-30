@@ -17,7 +17,8 @@ export async function generateEmbedding(text) {
       throw new Error('Embedding must be an array');
     }
     
-    return embedding;
+    // Format the embedding array for PostgreSQL vector type
+    return `[${embedding.join(',')}]`;
   } catch (error) {
     console.error('Error generating embedding:', error);
     throw error;
@@ -26,7 +27,7 @@ export async function generateEmbedding(text) {
 
 export async function searchContent(query, userId, type = 'diary') {
   try {
-    console.log('Starting search with query:', query, 'type:', type);
+    console.log('Starting search with query:', query);
     
     // Handle time-based queries
     const timeRegex = /today|yesterday|this week|last week/i;
@@ -45,16 +46,19 @@ export async function searchContent(query, userId, type = 'diary') {
 
     // First try text search as it's faster
     const textSearchQuery = `
-      SELECT 
-        id, 
-        content, 
-        created_at,
-        ts_rank(to_tsvector('english', content), plainto_tsquery('english', $1)) as rank
-      FROM ${type === 'diary' ? 'diary_entries' : 'notes'}
-      WHERE 
-        user_id = $2
-        ${timeFilter}
-        AND to_tsvector('english', content) @@ plainto_tsquery('english', $1)
+      WITH text_results AS (
+        SELECT 
+          id, 
+          content, 
+          created_at,
+          ts_rank(to_tsvector('english', content), plainto_tsquery('english', $1)) as rank
+        FROM ${type === 'diary' ? 'diary_entries' : 'notes'}
+        WHERE 
+          user_id = $2
+          ${timeFilter}
+          AND to_tsvector('english', content) @@ plainto_tsquery('english', $1)
+      )
+      SELECT * FROM text_results
       ORDER BY rank DESC, created_at DESC
       LIMIT 10;
     `;
@@ -72,17 +76,21 @@ export async function searchContent(query, userId, type = 'diary') {
     const embedding = await generateEmbedding(query);
 
     const vectorSearchQuery = `
-      SELECT 
-        id, 
-        content, 
-        created_at,
-        embedding <=> $1::vector as distance
-      FROM ${type === 'diary' ? 'diary_entries' : 'notes'}
-      WHERE 
-        user_id = $2
-        ${timeFilter}
-        AND embedding IS NOT NULL
-      ORDER BY embedding <=> $1::vector
+      WITH vector_results AS (
+        SELECT 
+          id, 
+          content, 
+          created_at,
+          1 - (embedding <=> $1::vector) as similarity
+        FROM ${type === 'diary' ? 'diary_entries' : 'notes'}
+        WHERE 
+          user_id = $2
+          ${timeFilter}
+          AND embedding IS NOT NULL
+      )
+      SELECT * FROM vector_results
+      WHERE similarity > 0.7
+      ORDER BY similarity DESC, created_at DESC
       LIMIT 10;
     `;
 
