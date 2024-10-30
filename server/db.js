@@ -8,9 +8,16 @@ const sql = neon(process.env.DATABASE_URL);
 export const db = {
   query: async (text, params) => {
     try {
-      console.log('Executing query:', text.substring(0, 100), 'with params:', params);
+      console.log('Executing query:', text.substring(0, 100), 'with params:', params?.map(p => 
+        typeof p === 'string' && p.length > 100 ? p.substring(0, 100) + '...' : p
+      ));
+      
       const result = await sql(text, params);
-      console.log('Query result:', result);
+      console.log('Query result:', Array.isArray(result) ? 
+        `${result.length} rows returned` : 
+        'Single result returned'
+      );
+      
       return {
         rows: Array.isArray(result) ? result : [result],
         rowCount: Array.isArray(result) ? result.length : 1
