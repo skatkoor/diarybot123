@@ -1,0 +1,2 @@
+This is a test file.
+If you can see this file, Git synchronization is working.
