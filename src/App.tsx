@@ -6,6 +6,7 @@ import DiaryView from './components/diary/DiaryView';
 import FinanceView from './components/finance/FinanceView';
 import NotesView from './components/notes/NotesView';
 import FlashCardView from './components/notes/FlashCardView';
+import AIAssistant from './components/ai/AIAssistant';
 import type { DiaryEntry, FinanceEntry, Account, FlashCard, Note } from './types';
 
 const STORAGE_KEY = 'diarybot-entries';
@@ -37,23 +38,31 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const handleNewEntry = (content: string, mood: 'happy' | 'neutral' | 'sad') => {
-    const newEntry: DiaryEntry = {
-      id: Date.now().toString(),
-      content,
-      mood,
-      date: new Date().toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }),
-      tags: [],
-      type: 'diary',
-      lastModified: new Date().toISOString(),
-    };
-    setEntries([newEntry, ...entries]);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([newEntry, ...entries]));
+  const handleNewEntry = async (content: string, mood: 'happy' | 'neutral' | 'sad') => {
+    try {
+      const response = await fetch('/api/diary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: 'test', // Replace with actual user ID
+          content,
+          mood,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create entry');
+      }
+
+      const newEntry = await response.json();
+      setEntries([newEntry, ...entries]);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([newEntry, ...entries]));
+    } catch (error) {
+      console.error('Error creating entry:', error);
+      // Handle error (show notification, etc.)
+    }
   };
 
   const handleAddFlashcard = (card: Omit<FlashCard, 'id'>) => {
@@ -66,16 +75,71 @@ function App() {
     localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
   };
 
-  const handleAddNote = (cardId: string, note: Omit<Note, 'id'>) => {
-    const newNote = { ...note, id: Date.now().toString() };
-    const updatedCards = flashcards.map(card => {
-      if (card.id === cardId) {
-        return { ...card, notes: [...card.notes, newNote] };
+  const handleUpdateNote = async (noteId: string, updates: Partial<Note>) => {
+    try {
+      const response = await fetch(`/api/notes/${noteId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: 'test', // Replace with actual user ID
+          ...updates,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update note');
       }
-      return card;
-    });
-    setFlashcards(updatedCards);
-    localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
+
+      const updatedNote = await response.json();
+      const updatedCards = flashcards.map(card => ({
+        ...card,
+        notes: card.notes.map(note => 
+          note.id === noteId ? { ...note, ...updatedNote } : note
+        )
+      }));
+
+      setFlashcards(updatedCards);
+      localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
+    } catch (error) {
+      console.error('Error updating note:', error);
+      // Handle error (show notification, etc.)
+    }
+  };
+
+  const handleAddNote = async (cardId: string, note: Omit<Note, 'id'>) => {
+    try {
+      const response = await fetch('/api/notes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: 'test', // Replace with actual user ID
+          cardId,
+          ...note,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create note');
+      }
+
+      const newNote = await response.json();
+      const updatedCards = flashcards.map(card => {
+        if (card.id === cardId) {
+          return { ...card, notes: [...card.notes, newNote] };
+        }
+        return card;
+      });
+
+      setFlashcards(updatedCards);
+      localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
+    } catch (error) {
+      console.error('Error creating note:', error);
+      // Handle error (show notification, etc.)
+    }
   };
 
   const handleAddSubCard = (parentId: string, card: Omit<FlashCard, 'id'>) => {
@@ -90,13 +154,30 @@ function App() {
     localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
   };
 
-  const handleAddTransaction = (transaction: Omit<FinanceEntry, 'id'>) => {
-    const newTransaction: FinanceEntry = {
-      ...transaction,
-      id: Date.now().toString(),
-    };
-    setFinanceEntries([newTransaction, ...financeEntries]);
-    localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify([newTransaction, ...financeEntries]));
+  const handleAddTransaction = async (transaction: Omit<FinanceEntry, 'id'>) => {
+    try {
+      const response = await fetch('/api/finances', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: 'test', // Replace with actual user ID
+          ...transaction,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create transaction');
+      }
+
+      const newTransaction = await response.json();
+      setFinanceEntries([newTransaction, ...financeEntries]);
+      localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify([newTransaction, ...financeEntries]));
+    } catch (error) {
+      console.error('Error creating transaction:', error);
+      // Handle error (show notification, etc.)
+    }
   };
 
   const handleAddAccount = (account: Omit<Account, 'id'>) => {
@@ -133,6 +214,7 @@ function App() {
             cards={flashcards}
             onAddCard={handleAddFlashcard}
             onSelectCard={setActiveCard}
+            onUpdateNote={handleUpdateNote}
           />
         );
       case 'finance':
@@ -144,6 +226,8 @@ function App() {
             onAddAccount={handleAddAccount}
           />
         );
+      case 'ai':
+        return <AIAssistant />;
       default:
         return null;
     }
