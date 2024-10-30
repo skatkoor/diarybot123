@@ -3,6 +3,7 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { db, initQueries } from './db.js';
+import { generateEmbedding, searchContent } from './search.js';
 import { randomUUID } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -39,13 +40,40 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// Test OpenAI endpoint
+app.get('/api/test-openai', async (req, res) => {
+  try {
+    const embedding = await generateEmbedding('Test embedding generation');
+    res.json({ 
+      message: 'OpenAI connection successful',
+      embeddingLength: embedding.length 
+    });
+  } catch (error) {
+    console.error('OpenAI test error:', error);
+    res.status(500).json({ error: 'OpenAI connection failed' });
+  }
+});
+
+// Search endpoint
+app.get('/api/search', async (req, res) => {
+  try {
+    const { query, userId, type } = req.query;
+    const results = await searchContent(query, userId, type);
+    res.json(results);
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
 // API Routes
 app.post('/api/diary', async (req, res) => {
   try {
     const { userId, content, mood } = req.body;
+    const embedding = await generateEmbedding(content);
     const result = await db.query(
-      'INSERT INTO diary_entries (id, user_id, content, mood) VALUES ($1, $2, $3, $4) RETURNING *',
-      [randomUUID(), userId, content, mood]
+      'INSERT INTO diary_entries (id, user_id, content, mood, embedding) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [randomUUID(), userId, content, mood, embedding]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -54,78 +82,9 @@ app.post('/api/diary', async (req, res) => {
   }
 });
 
-app.get('/api/diary/:userId', async (req, res) => {
-  try {
-    const result = await db.query(
-      'SELECT * FROM diary_entries WHERE user_id = $1 ORDER BY created_at DESC',
-      [req.params.userId]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching diary entries:', error);
-    res.status(500).json({ error: 'Failed to fetch diary entries' });
-  }
-});
-
-// Notes routes
-app.post('/api/notes', async (req, res) => {
-  try {
-    const { userId, title, content } = req.body;
-    const result = await db.query(
-      'INSERT INTO notes (id, user_id, title, content) VALUES ($1, $2, $3, $4) RETURNING *',
-      [randomUUID(), userId, title, content]
-    );
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error creating note:', error);
-    res.status(500).json({ error: 'Failed to create note' });
-  }
-});
-
-app.get('/api/notes/:userId', async (req, res) => {
-  try {
-    const result = await db.query(
-      'SELECT * FROM notes WHERE user_id = $1 ORDER BY created_at DESC',
-      [req.params.userId]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching notes:', error);
-    res.status(500).json({ error: 'Failed to fetch notes' });
-  }
-});
-
-// Finance routes
-app.post('/api/finances', async (req, res) => {
-  try {
-    const { userId, amount, type, category, description } = req.body;
-    const result = await db.query(
-      'INSERT INTO finances (id, user_id, amount, type, category, description) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [randomUUID(), userId, amount, type, category, description]
-    );
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error creating finance entry:', error);
-    res.status(500).json({ error: 'Failed to create finance entry' });
-  }
-});
-
-app.get('/api/finances/:userId', async (req, res) => {
-  try {
-    const result = await db.query(
-      'SELECT * FROM finances WHERE user_id = $1 ORDER BY created_at DESC',
-      [req.params.userId]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching finance entries:', error);
-    res.status(500).json({ error: 'Failed to fetch finance entries' });
-  }
-});
-
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(join(__dirname, '../dist')));
+  app.use(express.static('dist'));
   
   // Handle client-side routing
   app.get('*', (req, res) => {
