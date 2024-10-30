@@ -2,7 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { db, initQueries } from '../src/lib/db.js';
+import { db, initQueries } from './db.js';
+import { randomUUID } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -44,7 +45,7 @@ app.post('/api/diary', async (req, res) => {
     const { userId, content, mood } = req.body;
     const result = await db.query(
       'INSERT INTO diary_entries (id, user_id, content, mood) VALUES ($1, $2, $3, $4) RETURNING *',
-      [crypto.randomUUID(), userId, content, mood]
+      [randomUUID(), userId, content, mood]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -72,7 +73,7 @@ app.post('/api/notes', async (req, res) => {
     const { userId, title, content } = req.body;
     const result = await db.query(
       'INSERT INTO notes (id, user_id, title, content) VALUES ($1, $2, $3, $4) RETURNING *',
-      [crypto.randomUUID(), userId, title, content]
+      [randomUUID(), userId, title, content]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -100,7 +101,7 @@ app.post('/api/finances', async (req, res) => {
     const { userId, amount, type, category, description } = req.body;
     const result = await db.query(
       'INSERT INTO finances (id, user_id, amount, type, category, description) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [crypto.randomUUID(), userId, amount, type, category, description]
+      [randomUUID(), userId, amount, type, category, description]
     );
     res.json(result.rows[0]);
   } catch (error) {
