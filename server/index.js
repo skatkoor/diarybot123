@@ -20,14 +20,13 @@ async function initializeDatabase() {
   try {
     console.log('Starting database initialization...');
     
-    for (const { name, query } of initQueries) {
+    for (const query of initQueries) {
       try {
-        console.log(`Executing ${name}...`);
-        await db.query(query);
-        console.log(`Successfully executed ${name}`);
+        console.log(`Executing ${query.name}...`);
+        await db.query(query.query);
+        console.log(`Successfully executed ${query.name}`);
       } catch (error) {
-        console.error(`Error executing ${name}:`, error);
-        // Continue with other queries even if one fails
+        console.error(`Error executing ${query.name}:`, error);
         if (!error.message.includes('already exists')) {
           throw error;
         }
@@ -95,19 +94,19 @@ app.post('/api/diary', async (req, res) => {
 
     console.log('Generating embedding...');
     const embedding = await generateEmbedding(content);
-    console.log('Embedding generated, length:', embedding.length);
+    console.log('Embedding generated');
 
     const query = `
       INSERT INTO diary_entries (id, user_id, content, mood, embedding) 
-      VALUES ($1, $2, $3, $4, $5) 
+      VALUES ($1, $2, $3, $4, $5::vector) 
       RETURNING *
     `;
     
     const values = [randomUUID(), userId, content, mood, embedding];
-    console.log('Executing insert query with values:', values);
+    console.log('Executing insert query...');
     
     const result = await db.query(query, values);
-    console.log('Insert successful, result:', result.rows[0]);
+    console.log('Insert successful');
     
     res.json(result.rows[0]);
   } catch (error) {
@@ -123,6 +122,7 @@ app.post('/api/diary', async (req, res) => {
 app.get('/api/search', async (req, res) => {
   try {
     const { query, userId, type } = req.query;
+    
     if (!query || !userId) {
       return res.status(400).json({ 
         error: 'Missing required parameters' 
@@ -130,6 +130,12 @@ app.get('/api/search', async (req, res) => {
     }
     
     const results = await searchContent(query, userId, type);
+    
+    if (results.message) {
+      // No results found
+      return res.json([]);
+    }
+    
     res.json(results);
   } catch (error) {
     console.error('Search error:', error);

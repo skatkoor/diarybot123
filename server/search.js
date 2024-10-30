@@ -17,7 +17,8 @@ export async function generateEmbedding(text) {
       throw new Error('Embedding must be an array');
     }
     
-    return embedding;
+    // Ensure the embedding is properly formatted for Postgres vector type
+    return `[${embedding.join(',')}]`;
   } catch (error) {
     console.error('Error generating embedding:', error);
     throw error;
@@ -45,7 +46,7 @@ export async function searchContent(query, userId, type = 'all') {
 
     // Generate embedding for the search query
     const embedding = await generateEmbedding(query);
-    console.log('Generated embedding with length:', embedding.length);
+    console.log('Generated embedding for search');
 
     // Build the search query based on type
     let searchQuery = '';
@@ -90,8 +91,7 @@ export async function searchContent(query, userId, type = 'all') {
       LIMIT 10
     `;
 
-    console.log('Executing search query with params:', [embedding, userId]);
-
+    console.log('Executing search query...');
     const result = await db.query(searchQuery, [embedding, userId]);
     console.log('Search returned', result.rows.length, 'results');
 
@@ -120,12 +120,17 @@ export async function searchContent(query, userId, type = 'all') {
       ]);
 
       console.log('Text search returned', textResult.rows.length, 'results');
+      
+      if (textResult.rows.length === 0) {
+        return { message: 'No matching entries found for your query.' };
+      }
+      
       return textResult.rows;
     }
 
     return result.rows;
   } catch (error) {
     console.error('Error in searchContent:', error);
-    throw error;
+    throw new Error('Failed to search entries: ' + error.message);
   }
 }
