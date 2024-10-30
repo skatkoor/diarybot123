@@ -5,14 +5,25 @@ neonConfig.fetchConnectionCache = true;
 
 const sql = neon(process.env.DATABASE_URL);
 
+// Helper function to convert array to Postgres array literal
+function arrayToPostgresArray(arr) {
+  return `{${arr.join(',')}}`;
+}
+
 export const db = {
   query: async (text, params) => {
     try {
       console.log('Executing query:', text.substring(0, 100), 'with params:', params?.map(p => 
+        Array.isArray(p) ? `[Array of length ${p.length}]` : 
         typeof p === 'string' && p.length > 100 ? p.substring(0, 100) + '...' : p
       ));
       
-      const result = await sql(text, params);
+      // Transform array parameters to Postgres array literals
+      const transformedParams = params?.map(p => 
+        Array.isArray(p) ? arrayToPostgresArray(p) : p
+      );
+      
+      const result = await sql(text, transformedParams);
       console.log('Query result:', Array.isArray(result) ? 
         `${result.length} rows returned` : 
         'Single result returned'
@@ -44,6 +55,20 @@ export const initQueries = [
   {
     name: 'Enable vector extension',
     query: `CREATE EXTENSION IF NOT EXISTS vector`
+  },
+  
+  // Create helper function for array to vector conversion
+  {
+    name: 'Create array_to_vector function',
+    query: `
+      CREATE OR REPLACE FUNCTION array_to_vector(arr float8[])
+      RETURNS vector
+      AS $$
+      BEGIN
+        RETURN arr::vector;
+      END;
+      $$ LANGUAGE plpgsql IMMUTABLE;
+    `
   },
   
   // Create tables

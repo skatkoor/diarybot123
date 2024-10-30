@@ -17,8 +17,7 @@ export async function generateEmbedding(text) {
       throw new Error('Embedding must be an array');
     }
     
-    // Ensure the embedding is properly formatted for Postgres vector type
-    return `[${embedding.join(',')}]`;
+    return embedding;
   } catch (error) {
     console.error('Error generating embedding:', error);
     throw error;
@@ -61,7 +60,7 @@ export async function searchContent(query, userId, type = 'all') {
           created_at,
           CASE 
             WHEN embedding IS NULL THEN 1 
-            ELSE (embedding <=> $1::vector) 
+            ELSE embedding <=> array_to_vector($1::float8[])
           END as distance
          FROM diary_entries 
          WHERE user_id = $2 ${timeFilter})
@@ -77,7 +76,7 @@ export async function searchContent(query, userId, type = 'all') {
           created_at,
           CASE 
             WHEN embedding IS NULL THEN 1 
-            ELSE (embedding <=> $1::vector) 
+            ELSE embedding <=> array_to_vector($1::float8[])
           END as distance
          FROM notes 
          WHERE user_id = $2 ${timeFilter})
@@ -85,10 +84,13 @@ export async function searchContent(query, userId, type = 'all') {
     }
     
     searchQuery = `
-      SELECT * FROM (${tables.join(' UNION ALL ')}) results
+      WITH search_results AS (
+        ${tables.join(' UNION ALL ')}
+      )
+      SELECT * FROM search_results
       WHERE distance < 0.3
-      ORDER BY distance
-      LIMIT 10
+      ORDER BY distance ASC, created_at DESC
+      LIMIT 10;
     `;
 
     console.log('Executing search query...');
@@ -99,26 +101,32 @@ export async function searchContent(query, userId, type = 'all') {
     if (result.rows.length === 0) {
       console.log('No vector search results, trying text search');
       const textSearchQuery = `
-        SELECT 
-          id, 
-          content, 
-          type,
-          created_at,
-          1 as distance
-        FROM (
-          ${tables.map(t => t.replace('embedding <=> $1::vector', '1')).join(' UNION ALL ')}
-        ) results
-        WHERE content ILIKE $3
-        ORDER BY created_at DESC
-        LIMIT 10
+        WITH text_results AS (
+          SELECT 
+            id, 
+            content, 
+            type,
+            created_at,
+            ts_rank(to_tsvector('english', content), plainto_tsquery('english', $1)) as rank
+          FROM (
+            ${type === 'all' || type === 'diary' 
+              ? `SELECT id, content, 'diary' as type, created_at FROM diary_entries WHERE user_id = $2 ${timeFilter}`
+              : ''
+            }
+            ${type === 'all' ? 'UNION ALL' : ''}
+            ${type === 'all' || type === 'notes'
+              ? `SELECT id, content, 'note' as type, created_at FROM notes WHERE user_id = $2 ${timeFilter}`
+              : ''
+            }
+          ) combined_results
+          WHERE to_tsvector('english', content) @@ plainto_tsquery('english', $1)
+        )
+        SELECT * FROM text_results
+        ORDER BY rank DESC, created_at DESC
+        LIMIT 10;
       `;
 
-      const textResult = await db.query(textSearchQuery, [
-        embedding, 
-        userId, 
-        `%${query}%`
-      ]);
-
+      const textResult = await db.query(textSearchQuery, [query, userId]);
       console.log('Text search returned', textResult.rows.length, 'results');
       
       if (textResult.rows.length === 0) {
