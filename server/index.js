@@ -18,25 +18,38 @@ app.use(express.json());
 // Initialize database tables
 async function initializeDatabase() {
   try {
+    console.log('Starting database initialization...');
     for (const query of initQueries) {
+      console.log('Executing query:', query.substring(0, 50) + '...');
       await db.query(query);
     }
     console.log('Database tables initialized successfully');
   } catch (error) {
     console.error('Error initializing database tables:', error);
+    throw error; // Rethrow to prevent app from starting with uninitialized database
   }
 }
 
 // Call database initialization
-initializeDatabase();
+initializeDatabase().catch(error => {
+  console.error('Failed to initialize database:', error);
+  process.exit(1); // Exit if database initialization fails
+});
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {
-    await db.query('SELECT NOW()');
-    res.send('OK');
+    const result = await db.query('SELECT NOW()');
+    res.json({ 
+      status: 'OK',
+      timestamp: result.rows[0].now
+    });
   } catch (error) {
-    res.status(500).send('Database connection error');
+    console.error('Health check failed:', error);
+    res.status(500).json({ 
+      status: 'ERROR',
+      message: 'Database connection error'
+    });
   }
 });
 
