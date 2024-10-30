@@ -24,9 +24,9 @@ export async function generateEmbedding(text) {
   }
 }
 
-export async function searchContent(query, userId, type = 'all') {
+export async function searchContent(query, userId, type = 'diary') {
   try {
-    console.log('Starting search with query:', query);
+    console.log('Starting search with query:', query, 'type:', type);
     
     // Handle time-based queries
     const timeRegex = /today|yesterday|this week|last week/i;
@@ -43,100 +43,59 @@ export async function searchContent(query, userId, type = 'all') {
                     AND DATE(created_at) < DATE_TRUNC('week', CURRENT_DATE)`;
     }
 
-    // Generate embedding for the search query
-    const embedding = await generateEmbedding(query);
-    console.log('Generated embedding for search');
-
-    // Build the search query based on type
-    let searchQuery = '';
-    let tables = [];
-    
-    if (type === 'all' || type === 'diary') {
-      tables.push(`
-        (SELECT 
-          id, 
-          content, 
-          'diary' as type, 
-          created_at,
-          CASE 
-            WHEN embedding IS NULL THEN 1 
-            ELSE embedding <=> array_to_vector($1::float8[])
-          END as distance
-         FROM diary_entries 
-         WHERE user_id = $2 ${timeFilter})
-      `);
-    }
-    
-    if (type === 'all' || type === 'notes') {
-      tables.push(`
-        (SELECT 
-          id, 
-          content, 
-          'note' as type, 
-          created_at,
-          CASE 
-            WHEN embedding IS NULL THEN 1 
-            ELSE embedding <=> array_to_vector($1::float8[])
-          END as distance
-         FROM notes 
-         WHERE user_id = $2 ${timeFilter})
-      `);
-    }
-    
-    searchQuery = `
-      WITH search_results AS (
-        ${tables.join(' UNION ALL ')}
-      )
-      SELECT * FROM search_results
-      WHERE distance < 0.3
-      ORDER BY distance ASC, created_at DESC
+    // First try text search as it's faster
+    const textSearchQuery = `
+      SELECT 
+        id, 
+        content, 
+        created_at,
+        ts_rank(to_tsvector('english', content), plainto_tsquery('english', $1)) as rank
+      FROM ${type === 'diary' ? 'diary_entries' : 'notes'}
+      WHERE 
+        user_id = $2
+        ${timeFilter}
+        AND to_tsvector('english', content) @@ plainto_tsquery('english', $1)
+      ORDER BY rank DESC, created_at DESC
       LIMIT 10;
     `;
 
-    console.log('Executing search query...');
-    const result = await db.query(searchQuery, [embedding, userId]);
-    console.log('Search returned', result.rows.length, 'results');
-
-    // If no results found with vector search, try text search
-    if (result.rows.length === 0) {
-      console.log('No vector search results, trying text search');
-      const textSearchQuery = `
-        WITH text_results AS (
-          SELECT 
-            id, 
-            content, 
-            type,
-            created_at,
-            ts_rank(to_tsvector('english', content), plainto_tsquery('english', $1)) as rank
-          FROM (
-            ${type === 'all' || type === 'diary' 
-              ? `SELECT id, content, 'diary' as type, created_at FROM diary_entries WHERE user_id = $2 ${timeFilter}`
-              : ''
-            }
-            ${type === 'all' ? 'UNION ALL' : ''}
-            ${type === 'all' || type === 'notes'
-              ? `SELECT id, content, 'note' as type, created_at FROM notes WHERE user_id = $2 ${timeFilter}`
-              : ''
-            }
-          ) combined_results
-          WHERE to_tsvector('english', content) @@ plainto_tsquery('english', $1)
-        )
-        SELECT * FROM text_results
-        ORDER BY rank DESC, created_at DESC
-        LIMIT 10;
-      `;
-
-      const textResult = await db.query(textSearchQuery, [query, userId]);
-      console.log('Text search returned', textResult.rows.length, 'results');
-      
-      if (textResult.rows.length === 0) {
-        return { message: 'No matching entries found for your query.' };
-      }
-      
+    console.log('Executing text search...');
+    const textResult = await db.query(textSearchQuery, [query, userId]);
+    
+    if (textResult.rows.length > 0) {
+      console.log('Text search found results:', textResult.rows.length);
       return textResult.rows;
     }
 
-    return result.rows;
+    // If no text results, try semantic search
+    console.log('No text results, trying semantic search...');
+    const embedding = await generateEmbedding(query);
+
+    const vectorSearchQuery = `
+      SELECT 
+        id, 
+        content, 
+        created_at,
+        embedding <=> $1::vector as distance
+      FROM ${type === 'diary' ? 'diary_entries' : 'notes'}
+      WHERE 
+        user_id = $2
+        ${timeFilter}
+        AND embedding IS NOT NULL
+      ORDER BY embedding <=> $1::vector
+      LIMIT 10;
+    `;
+
+    console.log('Executing vector search...');
+    const vectorResult = await db.query(vectorSearchQuery, [embedding, userId]);
+    
+    if (vectorResult.rows.length > 0) {
+      console.log('Vector search found results:', vectorResult.rows.length);
+      return vectorResult.rows;
+    }
+
+    console.log('No results found');
+    return { message: 'No matching entries found for your query.' };
   } catch (error) {
     console.error('Error in searchContent:', error);
     throw new Error('Failed to search entries: ' + error.message);

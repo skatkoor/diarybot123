@@ -5,30 +5,11 @@ neonConfig.fetchConnectionCache = true;
 
 const sql = neon(process.env.DATABASE_URL);
 
-// Helper function to convert array to Postgres array literal
-function arrayToPostgresArray(arr) {
-  return `{${arr.join(',')}}`;
-}
-
 export const db = {
   query: async (text, params) => {
     try {
-      console.log('Executing query:', text.substring(0, 100), 'with params:', params?.map(p => 
-        Array.isArray(p) ? `[Array of length ${p.length}]` : 
-        typeof p === 'string' && p.length > 100 ? p.substring(0, 100) + '...' : p
-      ));
-      
-      // Transform array parameters to Postgres array literals
-      const transformedParams = params?.map(p => 
-        Array.isArray(p) ? arrayToPostgresArray(p) : p
-      );
-      
-      const result = await sql(text, transformedParams);
-      console.log('Query result:', Array.isArray(result) ? 
-        `${result.length} rows returned` : 
-        'Single result returned'
-      );
-      
+      console.log('Executing query:', text, 'with params:', params);
+      const result = await sql(text, params);
       return {
         rows: Array.isArray(result) ? result : [result],
         rowCount: Array.isArray(result) ? result.length : 1
@@ -54,24 +35,10 @@ export const initQueries = [
   // Enable vector extension
   {
     name: 'Enable vector extension',
-    query: `CREATE EXTENSION IF NOT EXISTS vector`
+    query: `CREATE EXTENSION IF NOT EXISTS vector;`
   },
   
-  // Create helper function for array to vector conversion
-  {
-    name: 'Create array_to_vector function',
-    query: `
-      CREATE OR REPLACE FUNCTION array_to_vector(arr float8[])
-      RETURNS vector
-      AS $$
-      BEGIN
-        RETURN arr::vector;
-      END;
-      $$ LANGUAGE plpgsql IMMUTABLE;
-    `
-  },
-  
-  // Create tables
+  // Create diary_entries table
   {
     name: 'Create diary_entries table',
     query: `
@@ -83,10 +50,14 @@ export const initQueries = [
         embedding vector(1536),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
+      );
+      CREATE INDEX IF NOT EXISTS diary_entries_user_id_idx ON ${schema.diaryEntries}(user_id);
+      CREATE INDEX IF NOT EXISTS diary_entries_content_idx ON ${schema.diaryEntries} USING GIN(to_tsvector('english', content));
+      CREATE INDEX IF NOT EXISTS diary_entries_embedding_idx ON ${schema.diaryEntries} USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
     `
   },
   
+  // Create notes table
   {
     name: 'Create notes table',
     query: `
@@ -98,48 +69,10 @@ export const initQueries = [
         embedding vector(1536),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
+      );
+      CREATE INDEX IF NOT EXISTS notes_user_id_idx ON ${schema.notes}(user_id);
+      CREATE INDEX IF NOT EXISTS notes_content_idx ON ${schema.notes} USING GIN(to_tsvector('english', content));
+      CREATE INDEX IF NOT EXISTS notes_embedding_idx ON ${schema.notes} USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
     `
-  },
-  
-  {
-    name: 'Create finances table',
-    query: `
-      CREATE TABLE IF NOT EXISTS ${schema.finances} (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        amount DECIMAL NOT NULL,
-        type TEXT NOT NULL,
-        category TEXT NOT NULL,
-        description TEXT,
-        embedding vector(1536),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
-    `
-  },
-  
-  {
-    name: 'Create users table',
-    query: `
-      CREATE TABLE IF NOT EXISTS ${schema.users} (
-        id TEXT PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
-    `
-  },
-
-  // Create indexes
-  {
-    name: 'Create diary entries embedding index',
-    query: `CREATE INDEX IF NOT EXISTS diary_embedding_idx ON ${schema.diaryEntries} USING ivfflat (embedding vector_cosine_ops)`
-  },
-  {
-    name: 'Create notes embedding index',
-    query: `CREATE INDEX IF NOT EXISTS notes_embedding_idx ON ${schema.notes} USING ivfflat (embedding vector_cosine_ops)`
-  },
-  {
-    name: 'Create finances embedding index',
-    query: `CREATE INDEX IF NOT EXISTS finances_embedding_idx ON ${schema.finances} USING ivfflat (embedding vector_cosine_ops)`
   }
 ];
