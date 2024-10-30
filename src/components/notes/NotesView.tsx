@@ -1,36 +1,57 @@
-import { useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Search, Edit2, Save, X } from 'lucide-react';
 import FlashCard from './FlashCard';
-import type { FlashCard as FlashCardType } from '../../types';
+import NoteCard from './NoteCard';
+import type { FlashCard as FlashCardType, Note } from '../../types';
 
 interface Props {
   cards: FlashCardType[];
   onAddCard: (card: Omit<FlashCardType, 'id'>) => void;
   onSelectCard: (card: FlashCardType) => void;
+  onUpdateNote: (noteId: string, updates: Partial<Note>) => void;
 }
 
-export default function NotesView({ cards, onAddCard, onSelectCard }: Props) {
+export default function NotesView({ cards, onAddCard, onSelectCard, onUpdateNote }: Props) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardName, setNewCardName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [localCards, setLocalCards] = useState(cards);
+
+  useEffect(() => {
+    setLocalCards(cards);
+  }, [cards]);
 
   const handleAddCard = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCardName.trim()) return;
     
-    onAddCard({
+    const newCard = {
       name: newCardName,
       type: 'folder',
       notes: [],
       children: [],
       lastModified: new Date().toISOString(),
-    });
+    };
     
+    onAddCard(newCard);
+    setLocalCards([...localCards, { ...newCard, id: Date.now().toString() }]);
     setNewCardName('');
     setIsAddingCard(false);
   };
 
-  const filteredCards = cards.filter(card => 
+  const handleUpdateNote = (noteId: string, updates: Partial<Note>) => {
+    onUpdateNote(noteId, updates);
+    setLocalCards(prevCards => 
+      prevCards.map(card => ({
+        ...card,
+        notes: card.notes.map(note => 
+          note.id === noteId ? { ...note, ...updates } : note
+        )
+      }))
+    );
+  };
+
+  const filteredCards = localCards.filter(card => 
     card.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -88,7 +109,12 @@ export default function NotesView({ cards, onAddCard, onSelectCard }: Props) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCards.map((card) => (
-          <FlashCard key={card.id} card={card} onClick={() => onSelectCard(card)} />
+          <FlashCard 
+            key={card.id} 
+            card={card} 
+            onClick={() => onSelectCard(card)}
+            onUpdateNote={handleUpdateNote}
+          />
         ))}
       </div>
     </div>
