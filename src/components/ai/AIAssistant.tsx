@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Search, Send, Bot, Book, FileText } from 'lucide-react';
 
 type SearchType = 'diary' | 'notes' | 'all';
@@ -23,10 +23,11 @@ export default function AIAssistant() {
 
     setIsLoading(true);
     setError('');
+    setResults([]);
 
     try {
       const response = await fetch(
-        `/api/search?query=${encodeURIComponent(query)}&type=${searchType}`,
+        `/api/search?query=${encodeURIComponent(query)}&userId=test&type=${searchType}`,
         {
           headers: {
             'Content-Type': 'application/json',
@@ -39,12 +40,37 @@ export default function AIAssistant() {
       }
 
       const data = await response.json();
-      setResults(data);
+      
+      if (Array.isArray(data) && data.length === 0) {
+        setError('No matching entries found. Try a different search term.');
+      } else {
+        setResults(data);
+      }
     } catch (err) {
-      setError('Failed to search entries. Please try again.');
       console.error('Search error:', err);
+      setError('Failed to search entries. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
     }
   };
 
@@ -100,7 +126,7 @@ export default function AIAssistant() {
         </div>
 
         {error && (
-          <div className="mt-4 p-4 bg-red-50 text-red-600 rounded-md">
+          <div className="mt-4 p-4 bg-gray-50 text-gray-600 rounded-md">
             {error}
           </div>
         )}
@@ -122,7 +148,7 @@ export default function AIAssistant() {
                       {result.type.charAt(0).toUpperCase() + result.type.slice(1)}
                     </span>
                     <span className="text-sm text-gray-400">
-                      {new Date(result.created_at).toLocaleDateString()}
+                      {formatDate(result.created_at)}
                     </span>
                   </div>
                   <p className="text-gray-700">{result.content}</p>
