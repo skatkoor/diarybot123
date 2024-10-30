@@ -8,7 +8,9 @@ const sql = neon(process.env.DATABASE_URL);
 export const db = {
   query: async (text, params) => {
     try {
+      console.log('Executing query:', text.substring(0, 100), 'with params:', params);
       const result = await sql(text, params);
+      console.log('Query result:', result);
       return {
         rows: Array.isArray(result) ? result : [result],
         rowCount: Array.isArray(result) ? result.length : 1
@@ -29,57 +31,83 @@ export const schema = {
   users: 'users'
 };
 
-// Drop and recreate tables
+// Initialize tables one by one with error handling
 export const initQueries = [
-  // Enable vector extension if not already enabled
-  `CREATE EXTENSION IF NOT EXISTS vector`,
-
-  // Drop existing tables to ensure clean slate
-  `DROP TABLE IF EXISTS ${schema.diaryEntries}`,
-  `DROP TABLE IF EXISTS ${schema.notes}`,
-  `DROP TABLE IF EXISTS ${schema.finances}`,
-  `DROP TABLE IF EXISTS ${schema.users}`,
-
-  // Create tables with vector support
-  `CREATE TABLE ${schema.diaryEntries} (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    content TEXT NOT NULL,
-    mood TEXT NOT NULL,
-    embedding vector(1536),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-  )`,
+  // Enable vector extension
+  {
+    name: 'Enable vector extension',
+    query: `CREATE EXTENSION IF NOT EXISTS vector`
+  },
   
-  `CREATE TABLE ${schema.notes} (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    embedding vector(1536),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-  )`,
+  // Create tables
+  {
+    name: 'Create diary_entries table',
+    query: `
+      CREATE TABLE IF NOT EXISTS ${schema.diaryEntries} (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        content TEXT NOT NULL,
+        mood TEXT NOT NULL,
+        embedding vector(1536),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+  },
   
-  `CREATE TABLE ${schema.finances} (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    amount DECIMAL NOT NULL,
-    type TEXT NOT NULL,
-    category TEXT NOT NULL,
-    description TEXT,
-    embedding vector(1536),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-  )`,
+  {
+    name: 'Create notes table',
+    query: `
+      CREATE TABLE IF NOT EXISTS ${schema.notes} (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        embedding vector(1536),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+  },
   
-  `CREATE TABLE ${schema.users} (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-  )`,
+  {
+    name: 'Create finances table',
+    query: `
+      CREATE TABLE IF NOT EXISTS ${schema.finances} (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        amount DECIMAL NOT NULL,
+        type TEXT NOT NULL,
+        category TEXT NOT NULL,
+        description TEXT,
+        embedding vector(1536),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+  },
+  
+  {
+    name: 'Create users table',
+    query: `
+      CREATE TABLE IF NOT EXISTS ${schema.users} (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `
+  },
 
-  // Create indexes for vector similarity search
-  `CREATE INDEX diary_embedding_idx ON ${schema.diaryEntries} USING ivfflat (embedding vector_cosine_ops)`,
-  `CREATE INDEX notes_embedding_idx ON ${schema.notes} USING ivfflat (embedding vector_cosine_ops)`,
-  `CREATE INDEX finances_embedding_idx ON ${schema.finances} USING ivfflat (embedding vector_cosine_ops)`
+  // Create indexes
+  {
+    name: 'Create diary entries embedding index',
+    query: `CREATE INDEX IF NOT EXISTS diary_embedding_idx ON ${schema.diaryEntries} USING ivfflat (embedding vector_cosine_ops)`
+  },
+  {
+    name: 'Create notes embedding index',
+    query: `CREATE INDEX IF NOT EXISTS notes_embedding_idx ON ${schema.notes} USING ivfflat (embedding vector_cosine_ops)`
+  },
+  {
+    name: 'Create finances embedding index',
+    query: `CREATE INDEX IF NOT EXISTS finances_embedding_idx ON ${schema.finances} USING ivfflat (embedding vector_cosine_ops)`
+  }
 ];
