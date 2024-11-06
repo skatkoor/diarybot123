@@ -8,7 +8,7 @@ import type { DiaryEntry as DiaryEntryType } from '../../types';
 
 interface Props {
   entries: DiaryEntryType[];
-  onNewEntry: (content: string, mood: 'happy' | 'neutral' | 'sad') => void;
+  onNewEntry: (content: string, mood: 'happy' | 'neutral' | 'sad', date: string) => void;
   onDeleteEntry: (id: string) => void;
   onEditEntry: (id: string, content: string) => void;
 }
@@ -16,10 +16,22 @@ interface Props {
 export default function DiaryView({ entries, onNewEntry, onDeleteEntry, onEditEntry }: Props) {
   const [calendarView, setCalendarView] = useState<'year' | 'week'>('week');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredEntries = entries.filter(entry => 
-    new Date(entry.date).toDateString() === selectedDate.toDateString()
-  );
+  const handleNewEntry = async (content: string, mood: 'happy' | 'neutral' | 'sad', date: string) => {
+    try {
+      setError(null);
+      await onNewEntry(content, mood, date);
+    } catch (err) {
+      console.error('Failed to create entry:', err);
+      setError('Failed to save entry. Please try again.');
+    }
+  };
+
+  const filteredEntries = entries.filter(entry => {
+    const entryDate = new Date(entry.date);
+    return entryDate.toDateString() === selectedDate.toDateString();
+  });
 
   return (
     <div className="space-y-6">
@@ -64,7 +76,13 @@ export default function DiaryView({ entries, onNewEntry, onDeleteEntry, onEditEn
           </h2>
         </div>
 
-        <NewEntry onSubmit={onNewEntry} />
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
+            {error}
+          </div>
+        )}
+
+        <NewEntry onSubmit={handleNewEntry} selectedDate={selectedDate} />
 
         {filteredEntries.length === 0 ? (
           <p className="text-center text-gray-500 py-8">No entries for this date</p>

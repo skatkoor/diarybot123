@@ -1,57 +1,44 @@
-import { useState, useEffect } from 'react';
-import { Plus, Search, Edit2, Save, X } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Search } from 'lucide-react';
 import FlashCard from './FlashCard';
-import NoteCard from './NoteCard';
-import type { FlashCard as FlashCardType, Note } from '../../types';
+import type { FlashCard as FlashCardType } from '../../types';
 
 interface Props {
   cards: FlashCardType[];
   onAddCard: (card: Omit<FlashCardType, 'id'>) => void;
   onSelectCard: (card: FlashCardType) => void;
-  onUpdateNote: (noteId: string, updates: Partial<Note>) => void;
+  onEditCard: (cardId: string, updates: Partial<FlashCardType>) => void;
+  onDeleteCard: (cardId: string) => void;
 }
 
-export default function NotesView({ cards, onAddCard, onSelectCard, onUpdateNote }: Props) {
+export default function NotesView({ 
+  cards, 
+  onAddCard, 
+  onSelectCard, 
+  onEditCard, 
+  onDeleteCard 
+}: Props) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardName, setNewCardName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [localCards, setLocalCards] = useState(cards);
-
-  useEffect(() => {
-    setLocalCards(cards);
-  }, [cards]);
 
   const handleAddCard = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCardName.trim()) return;
     
-    const newCard = {
+    onAddCard({
       name: newCardName,
       type: 'folder',
       notes: [],
       children: [],
       lastModified: new Date().toISOString(),
-    };
+    });
     
-    onAddCard(newCard);
-    setLocalCards([...localCards, { ...newCard, id: Date.now().toString() }]);
     setNewCardName('');
     setIsAddingCard(false);
   };
 
-  const handleUpdateNote = (noteId: string, updates: Partial<Note>) => {
-    onUpdateNote(noteId, updates);
-    setLocalCards(prevCards => 
-      prevCards.map(card => ({
-        ...card,
-        notes: card.notes.map(note => 
-          note.id === noteId ? { ...note, ...updates } : note
-        )
-      }))
-    );
-  };
-
-  const filteredCards = localCards.filter(card => 
+  const filteredCards = cards.filter(card => 
     card.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -99,7 +86,8 @@ export default function NotesView({ cards, onAddCard, onSelectCard, onUpdateNote
             </button>
             <button
               type="submit"
-              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              disabled={!newCardName.trim()}
+              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
             >
               Create
             </button>
@@ -109,11 +97,12 @@ export default function NotesView({ cards, onAddCard, onSelectCard, onUpdateNote
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCards.map((card) => (
-          <FlashCard 
-            key={card.id} 
-            card={card} 
+          <FlashCard
+            key={card.id}
+            card={card}
             onClick={() => onSelectCard(card)}
-            onUpdateNote={handleUpdateNote}
+            onEdit={onEditCard}
+            onDelete={onDeleteCard}
           />
         ))}
       </div>

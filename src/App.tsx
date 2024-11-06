@@ -6,13 +6,14 @@ import DiaryView from './components/diary/DiaryView';
 import FinanceView from './components/finance/FinanceView';
 import NotesView from './components/notes/NotesView';
 import FlashCardView from './components/notes/FlashCardView';
-import AIAssistant from './components/ai/AIAssistant';
-import type { DiaryEntry, FinanceEntry, Account, FlashCard, Note } from './types';
+import TodoView from './components/todo/TodoView';
+import type { DiaryEntry, FinanceEntry, Account, FlashCard, Note, Todo } from './types';
 
 const STORAGE_KEY = 'diarybot-entries';
 const FINANCE_STORAGE_KEY = 'diarybot-finance';
 const ACCOUNTS_STORAGE_KEY = 'diarybot-accounts';
 const FLASHCARDS_STORAGE_KEY = 'diarybot-flashcards';
+const TODO_STORAGE_KEY = 'diarybot-todos';
 
 function App() {
   const [activeSection, setActiveSection] = useState('diary');
@@ -38,34 +39,33 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const handleNewEntry = async (content: string, mood: 'happy' | 'neutral' | 'sad') => {
-    try {
-      const response = await fetch('/api/diary', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: 'test', // Replace with actual user ID
-          content,
-          mood,
-        }),
-      });
+  const [todos, setTodos] = useState<Todo[]>(() => {
+    const saved = localStorage.getItem(TODO_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
 
-      if (!response.ok) {
-        throw new Error('Failed to create entry');
-      }
-
-      const newEntry = await response.json();
-      setEntries([newEntry, ...entries]);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([newEntry, ...entries]));
-    } catch (error) {
-      console.error('Error creating entry:', error);
-      // Handle error (show notification, etc.)
-    }
+  const handleNewEntry = async (content: string, mood: 'happy' | 'neutral' | 'sad', date: string) => {
+    const entryDate = new Date(date);
+    const newEntry: DiaryEntry = {
+      id: Date.now().toString(),
+      content,
+      mood,
+      date: entryDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }),
+      tags: [],
+      type: 'diary',
+      lastModified: new Date().toISOString(),
+    };
+    const updatedEntries = [newEntry, ...entries];
+    setEntries(updatedEntries);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedEntries));
   };
 
-  const handleAddFlashcard = (card: Omit<FlashCard, 'id'>) => {
+  const handleAddFlashcard = async (card: Omit<FlashCard, 'id'>) => {
     const newCard: FlashCard = {
       ...card,
       id: Date.now().toString(),
@@ -75,109 +75,277 @@ function App() {
     localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
   };
 
-  const handleUpdateNote = async (noteId: string, updates: Partial<Note>) => {
-    try {
-      const response = await fetch(`/api/notes/${noteId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: 'test', // Replace with actual user ID
-          ...updates,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update note');
-      }
-
-      const updatedNote = await response.json();
-      const updatedCards = flashcards.map(card => ({
-        ...card,
-        notes: card.notes.map(note => 
-          note.id === noteId ? { ...note, ...updatedNote } : note
-        )
-      }));
-
-      setFlashcards(updatedCards);
-      localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
-    } catch (error) {
-      console.error('Error updating note:', error);
-      // Handle error (show notification, etc.)
-    }
-  };
-
-  const handleAddNote = async (cardId: string, note: Omit<Note, 'id'>) => {
-    try {
-      const response = await fetch('/api/notes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: 'test', // Replace with actual user ID
-          cardId,
-          ...note,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create note');
-      }
-
-      const newNote = await response.json();
-      const updatedCards = flashcards.map(card => {
-        if (card.id === cardId) {
-          return { ...card, notes: [...card.notes, newNote] };
+  const handleEditCard = (cardId: string, updates: Partial<FlashCard>) => {
+    const updatedCards = flashcards.map(card => {
+      if (card.id === cardId) {
+        const updatedCard = { ...card, ...updates, lastModified: new Date().toISOString() };
+        if (activeCard?.id === cardId) {
+          setActiveCard(updatedCard);
         }
-        return card;
-      });
-
-      setFlashcards(updatedCards);
-      localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
-    } catch (error) {
-      console.error('Error creating note:', error);
-      // Handle error (show notification, etc.)
-    }
-  };
-
-  const handleAddSubCard = (parentId: string, card: Omit<FlashCard, 'id'>) => {
-    const newCard = { ...card, id: Date.now().toString() };
-    const updatedCards = flashcards.map(existingCard => {
-      if (existingCard.id === parentId) {
-        return { ...existingCard, children: [...existingCard.children, newCard] };
+        return updatedCard;
       }
-      return existingCard;
+      if (card.children && card.children.length > 0) {
+        return {
+          ...card,
+          children: updateNestedCards(card.children, cardId, updates),
+        };
+      }
+      return card;
     });
+
     setFlashcards(updatedCards);
     localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
   };
 
-  const handleAddTransaction = async (transaction: Omit<FinanceEntry, 'id'>) => {
-    try {
-      const response = await fetch('/api/finances', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: 'test', // Replace with actual user ID
-          ...transaction,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create transaction');
+  const updateNestedCards = (
+    cards: FlashCard[],
+    cardId: string,
+    updates: Partial<FlashCard>
+  ): FlashCard[] => {
+    return cards.map(card => {
+      if (card.id === cardId) {
+        const updatedCard = { ...card, ...updates, lastModified: new Date().toISOString() };
+        if (activeCard?.id === cardId) {
+          setActiveCard(updatedCard);
+        }
+        return updatedCard;
       }
+      if (card.children && card.children.length > 0) {
+        return {
+          ...card,
+          children: updateNestedCards(card.children, cardId, updates),
+        };
+      }
+      return card;
+    });
+  };
 
-      const newTransaction = await response.json();
-      setFinanceEntries([newTransaction, ...financeEntries]);
-      localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify([newTransaction, ...financeEntries]));
-    } catch (error) {
-      console.error('Error creating transaction:', error);
-      // Handle error (show notification, etc.)
+  const handleDeleteCard = (cardId: string) => {
+    const deleteCardRecursive = (cards: FlashCard[]): FlashCard[] => {
+      return cards.filter(card => {
+        if (card.id === cardId) {
+          if (activeCard?.id === cardId) {
+            setActiveCard(null);
+          }
+          return false;
+        }
+        if (card.children && card.children.length > 0) {
+          return {
+            ...card,
+            children: deleteCardRecursive(card.children),
+          };
+        }
+        return true;
+      });
+    };
+
+    const updatedCards = deleteCardRecursive(flashcards);
+    setFlashcards(updatedCards);
+    localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
+  };
+
+  const handleReorderCards = (parentId: string | null, reorderedCards: FlashCard[]) => {
+    if (!parentId) {
+      setFlashcards(reorderedCards);
+      localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(reorderedCards));
+      return;
     }
+
+    const updateCardsOrder = (cards: FlashCard[]): FlashCard[] => {
+      return cards.map(card => {
+        if (card.id === parentId) {
+          return { ...card, children: reorderedCards };
+        }
+        if (card.children && card.children.length > 0) {
+          return { ...card, children: updateCardsOrder(card.children) };
+        }
+        return card;
+      });
+    };
+
+    const updatedCards = updateCardsOrder(flashcards);
+    setFlashcards(updatedCards);
+    localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
+  };
+
+  const handleAddSubCard = async (parentId: string, card: Omit<FlashCard, 'id'>) => {
+    const newCard = { ...card, id: Date.now().toString() };
+    
+    const addSubCardToParent = (cards: FlashCard[]): FlashCard[] => {
+      return cards.map(existingCard => {
+        if (existingCard.id === parentId) {
+          const updatedCard = {
+            ...existingCard,
+            children: [...existingCard.children, newCard],
+          };
+          if (activeCard?.id === parentId) {
+            setActiveCard(updatedCard);
+          }
+          return updatedCard;
+        }
+        if (existingCard.children && existingCard.children.length > 0) {
+          return {
+            ...existingCard,
+            children: addSubCardToParent(existingCard.children),
+          };
+        }
+        return existingCard;
+      });
+    };
+
+    const updatedCards = addSubCardToParent(flashcards);
+    setFlashcards(updatedCards);
+    localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
+  };
+
+  const handleAddNote = async (cardId: string, note: Omit<Note, 'id'>) => {
+    const newNote = { ...note, id: Date.now().toString() };
+    
+    const addNoteToCard = (cards: FlashCard[]): FlashCard[] => {
+      return cards.map(card => {
+        if (card.id === cardId) {
+          const updatedCard = {
+            ...card,
+            notes: [...card.notes, newNote],
+          };
+          if (activeCard?.id === cardId) {
+            setActiveCard(updatedCard);
+          }
+          return updatedCard;
+        }
+        if (card.children && card.children.length > 0) {
+          return {
+            ...card,
+            children: addNoteToCard(card.children),
+          };
+        }
+        return card;
+      });
+    };
+
+    const updatedCards = addNoteToCard(flashcards);
+    setFlashcards(updatedCards);
+    localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
+  };
+
+  const handleEditNote = (cardId: string, noteId: string, updates: Partial<Note>) => {
+    const updatedCards = flashcards.map(card => {
+      if (card.id === cardId) {
+        const updatedCard = {
+          ...card,
+          notes: card.notes.map(note =>
+            note.id === noteId
+              ? { ...note, ...updates, lastModified: new Date().toISOString() }
+              : note
+          ),
+        };
+        if (activeCard?.id === cardId) {
+          setActiveCard(updatedCard);
+        }
+        return updatedCard;
+      }
+      if (card.children && card.children.length > 0) {
+        return {
+          ...card,
+          children: updateNestedCardsWithNoteEdit(card.children, cardId, noteId, updates),
+        };
+      }
+      return card;
+    });
+
+    setFlashcards(updatedCards);
+    localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
+  };
+
+  const updateNestedCardsWithNoteEdit = (
+    cards: FlashCard[],
+    cardId: string,
+    noteId: string,
+    updates: Partial<Note>
+  ): FlashCard[] => {
+    return cards.map(card => {
+      if (card.id === cardId) {
+        const updatedCard = {
+          ...card,
+          notes: card.notes.map(note =>
+            note.id === noteId
+              ? { ...note, ...updates, lastModified: new Date().toISOString() }
+              : note
+          ),
+        };
+        if (activeCard?.id === cardId) {
+          setActiveCard(updatedCard);
+        }
+        return updatedCard;
+      }
+      if (card.children && card.children.length > 0) {
+        return {
+          ...card,
+          children: updateNestedCardsWithNoteEdit(card.children, cardId, noteId, updates),
+        };
+      }
+      return card;
+    });
+  };
+
+  const handleDeleteNote = (cardId: string, noteId: string) => {
+    const updatedCards = flashcards.map(card => {
+      if (card.id === cardId) {
+        const updatedCard = {
+          ...card,
+          notes: card.notes.filter(note => note.id !== noteId),
+        };
+        if (activeCard?.id === cardId) {
+          setActiveCard(updatedCard);
+        }
+        return updatedCard;
+      }
+      if (card.children && card.children.length > 0) {
+        return {
+          ...card,
+          children: updateNestedCardsWithNoteDelete(card.children, cardId, noteId),
+        };
+      }
+      return card;
+    });
+
+    setFlashcards(updatedCards);
+    localStorage.setItem(FLASHCARDS_STORAGE_KEY, JSON.stringify(updatedCards));
+  };
+
+  const updateNestedCardsWithNoteDelete = (
+    cards: FlashCard[],
+    cardId: string,
+    noteId: string
+  ): FlashCard[] => {
+    return cards.map(card => {
+      if (card.id === cardId) {
+        const updatedCard = {
+          ...card,
+          notes: card.notes.filter(note => note.id !== noteId),
+        };
+        if (activeCard?.id === cardId) {
+          setActiveCard(updatedCard);
+        }
+        return updatedCard;
+      }
+      if (card.children && card.children.length > 0) {
+        return {
+          ...card,
+          children: updateNestedCardsWithNoteDelete(card.children, cardId, noteId),
+        };
+      }
+      return card;
+    });
+  };
+
+  const handleAddTransaction = (transaction: Omit<FinanceEntry, 'id'>) => {
+    const newTransaction: FinanceEntry = {
+      ...transaction,
+      id: Date.now().toString(),
+    };
+    setFinanceEntries([newTransaction, ...financeEntries]);
+    localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify([newTransaction, ...financeEntries]));
   };
 
   const handleAddAccount = (account: Omit<Account, 'id'>) => {
@@ -187,6 +355,38 @@ function App() {
     };
     setAccounts([...accounts, newAccount]);
     localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify([...accounts, newAccount]));
+  };
+
+  const handleAddTodo = (content: string) => {
+    const newTodo: Todo = {
+      id: Date.now().toString(),
+      content,
+      completed: false,
+      date: new Date().toISOString(),
+    };
+    const updatedTodos = [newTodo, ...todos];
+    setTodos(updatedTodos);
+    localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(updatedTodos));
+  };
+
+  const handleCompleteTodo = (id: string) => {
+    const updatedTodos = todos.map(todo => {
+      if (todo.id === id) {
+        const completed = !todo.completed;
+        // If completing the todo, add a diary entry
+        if (completed) {
+          handleNewEntry(
+            `Completed task: ${todo.content}`,
+            'happy',
+            new Date().toISOString()
+          );
+        }
+        return { ...todo, completed };
+      }
+      return todo;
+    });
+    setTodos(updatedTodos);
+    localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(updatedTodos));
   };
 
   const renderContent = () => {
@@ -208,13 +408,28 @@ function App() {
             onAddNote={handleAddNote}
             onAddSubCard={handleAddSubCard}
             onSelectCard={setActiveCard}
+            onEditCard={handleEditCard}
+            onDeleteCard={handleDeleteCard}
+            onReorderCards={handleReorderCards}
+            onEditNote={handleEditNote}
+            onDeleteNote={handleDeleteNote}
           />
         ) : (
           <NotesView
             cards={flashcards}
             onAddCard={handleAddFlashcard}
             onSelectCard={setActiveCard}
-            onUpdateNote={handleUpdateNote}
+            onEditCard={handleEditCard}
+            onDeleteCard={handleDeleteCard}
+            onReorderCards={handleReorderCards}
+          />
+        );
+      case 'todo':
+        return (
+          <TodoView
+            todos={todos}
+            onAddTodo={handleAddTodo}
+            onCompleteTodo={handleCompleteTodo}
           />
         );
       case 'finance':
@@ -226,8 +441,6 @@ function App() {
             onAddAccount={handleAddAccount}
           />
         );
-      case 'ai':
-        return <AIAssistant />;
       default:
         return null;
     }

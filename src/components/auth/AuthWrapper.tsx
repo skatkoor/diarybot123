@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 const VALID_CREDENTIALS = {
   username: 'skatkoor',
@@ -10,6 +11,22 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
+
+  useEffect(() => {
+    const handleCapsLock = (e: KeyboardEvent) => {
+      setCapsLockOn(e.getModifierState('CapsLock'));
+    };
+
+    window.addEventListener('keydown', handleCapsLock);
+    window.addEventListener('keyup', handleCapsLock);
+
+    return () => {
+      window.removeEventListener('keydown', handleCapsLock);
+      window.removeEventListener('keyup', handleCapsLock);
+    };
+  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,13 +56,31 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
+              <div className="relative mt-1">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+              {capsLockOn && (
+                <p className="mt-1 text-sm text-amber-600">
+                  Caps Lock is on
+                </p>
+              )}
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <button

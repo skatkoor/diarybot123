@@ -64,3 +64,10 @@ export interface FlashCard {
   children: FlashCard[];
   lastModified: string;
 }
+
+export interface TodoItem {
+  id: string;
+  content: string;
+  completed: boolean;
+  date: string;
+}

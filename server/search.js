@@ -12,12 +12,13 @@ export async function generateEmbedding(text) {
       input: text,
     });
     
+    // Ensure the embedding is an array and properly formatted
     const embedding = response.data[0].embedding;
     if (!Array.isArray(embedding)) {
       throw new Error('Embedding must be an array');
     }
     
-    // Format the embedding array for PostgreSQL vector type
+    // Format the embedding as a proper Postgres vector string
     return `[${embedding.join(',')}]`;
   } catch (error) {
     console.error('Error generating embedding:', error);
@@ -25,87 +26,53 @@ export async function generateEmbedding(text) {
   }
 }
 
-export async function searchContent(query, userId, type = 'diary') {
+export async function searchContent(query, userId, type = 'all') {
   try {
-    console.log('Starting search with query:', query);
+    // Generate embedding for the search query
+    const queryEmbedding = await generateEmbedding(query);
     
-    // Handle time-based queries
-    const timeRegex = /today|yesterday|this week|last week/i;
-    let timeFilter = '';
+    // Build the search query based on type
+    let searchQuery = '';
+    let tables = [];
     
-    if (query.match(/today/i)) {
-      timeFilter = `AND DATE(created_at) = CURRENT_DATE`;
-    } else if (query.match(/yesterday/i)) {
-      timeFilter = `AND DATE(created_at) = CURRENT_DATE - INTERVAL '1 day'`;
-    } else if (query.match(/this week/i)) {
-      timeFilter = `AND DATE(created_at) >= DATE_TRUNC('week', CURRENT_DATE)`;
-    } else if (query.match(/last week/i)) {
-      timeFilter = `AND DATE(created_at) >= DATE_TRUNC('week', CURRENT_DATE - INTERVAL '1 week')
-                    AND DATE(created_at) < DATE_TRUNC('week', CURRENT_DATE)`;
+    if (type === 'all' || type === 'diary') {
+      tables.push(`
+        (SELECT id, content, 'diary' as type, created_at, 
+         embedding <=> $1::vector as distance
+         FROM diary_entries 
+         WHERE user_id = $2) 
+      `);
     }
-
-    // First try text search as it's faster
-    const textSearchQuery = `
-      WITH text_results AS (
-        SELECT 
-          id, 
-          content, 
-          created_at,
-          ts_rank(to_tsvector('english', content), plainto_tsquery('english', $1)) as rank
-        FROM ${type === 'diary' ? 'diary_entries' : 'notes'}
-        WHERE 
-          user_id = $2
-          ${timeFilter}
-          AND to_tsvector('english', content) @@ plainto_tsquery('english', $1)
-      )
-      SELECT * FROM text_results
-      ORDER BY rank DESC, created_at DESC
-      LIMIT 10;
+    
+    if (type === 'all' || type === 'notes') {
+      tables.push(`
+        (SELECT id, content, 'note' as type, created_at,
+         embedding <=> $1::vector as distance 
+         FROM notes 
+         WHERE user_id = $2)
+      `);
+    }
+    
+    if (type === 'all' || type === 'finances') {
+      tables.push(`
+        (SELECT id, description as content, 'finance' as type, created_at,
+         embedding <=> $1::vector as distance
+         FROM finances 
+         WHERE user_id = $2)
+      `);
+    }
+    
+    searchQuery = `
+      SELECT * FROM (${tables.join(' UNION ALL ')}) results
+      WHERE distance < 0.3
+      ORDER BY distance
+      LIMIT 10
     `;
 
-    console.log('Executing text search...');
-    const textResult = await db.query(textSearchQuery, [query, userId]);
-    
-    if (textResult.rows.length > 0) {
-      console.log('Text search found results:', textResult.rows.length);
-      return textResult.rows;
-    }
-
-    // If no text results, try semantic search
-    console.log('No text results, trying semantic search...');
-    const embedding = await generateEmbedding(query);
-
-    const vectorSearchQuery = `
-      WITH vector_results AS (
-        SELECT 
-          id, 
-          content, 
-          created_at,
-          1 - (embedding <=> $1::vector) as similarity
-        FROM ${type === 'diary' ? 'diary_entries' : 'notes'}
-        WHERE 
-          user_id = $2
-          ${timeFilter}
-          AND embedding IS NOT NULL
-      )
-      SELECT * FROM vector_results
-      WHERE similarity > 0.7
-      ORDER BY similarity DESC, created_at DESC
-      LIMIT 10;
-    `;
-
-    console.log('Executing vector search...');
-    const vectorResult = await db.query(vectorSearchQuery, [embedding, userId]);
-    
-    if (vectorResult.rows.length > 0) {
-      console.log('Vector search found results:', vectorResult.rows.length);
-      return vectorResult.rows;
-    }
-
-    console.log('No results found');
-    return { message: 'No matching entries found for your query.' };
+    const result = await db.query(searchQuery, [queryEmbedding, userId]);
+    return result.rows;
   } catch (error) {
     console.error('Error in searchContent:', error);
-    throw new Error('Failed to search entries: ' + error.message);
+    throw error;
   }
 }

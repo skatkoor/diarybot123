@@ -1,32 +1,29 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { S3Client } from '@aws-sdk/client-s3';
 
-const r2Client = new S3Client({
+if (!process.env.CLOUDFLARE_ACCOUNT_ID || 
+    !process.env.R2_ACCESS_KEY_ID || 
+    !process.env.R2_SECRET_ACCESS_KEY || 
+    !process.env.R2_BUCKET_NAME) {
+  throw new Error('Missing required R2 environment variables');
+}
+
+export const r2Client = new S3Client({
   region: 'auto',
-  endpoint: import.meta.env.VITE_R2_ENDPOINT,
+  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
   credentials: {
-    accessKeyId: import.meta.env.VITE_R2_ACCESS_KEY_ID,
-    secretAccessKey: import.meta.env.VITE_R2_SECRET_ACCESS_KEY,
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
 
-export async function uploadFile(file: File, path: string) {
-  const command = new PutObjectCommand({
-    Bucket: import.meta.env.VITE_R2_BUCKET_NAME,
-    Key: path,
-    Body: file,
-    ContentType: file.type,
-  });
+export const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
 
-  await r2Client.send(command);
-  return path;
-}
-
-export async function getFileUrl(path: string) {
-  const command = new GetObjectCommand({
-    Bucket: import.meta.env.VITE_R2_BUCKET_NAME,
-    Key: path,
-  });
-
-  return getSignedUrl(r2Client, command, { expiresIn: 3600 });
+// Error handling wrapper
+export async function executeStorageOperation(operation: () => Promise<any>) {
+  try {
+    return await operation();
+  } catch (error) {
+    console.error('Storage operation failed:', error);
+    throw new Error('Storage operation failed');
+  }
 }

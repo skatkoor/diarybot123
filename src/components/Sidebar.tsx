@@ -9,6 +9,7 @@ import {
   Bot,
   Plus,
   DollarSign,
+  CheckSquare,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -22,7 +23,7 @@ export default function Sidebar({ activeSection, onSectionChange }: SidebarProps
   const menuItems = [
     { id: 'diary', icon: Book, label: 'Diary' },
     { id: 'notes', icon: StickyNote, label: 'Notes' },
-    { id: 'templates', icon: Layout, label: 'Templates' },
+    { id: 'todo', icon: CheckSquare, label: 'To Do' },
     { id: 'ai', icon: Bot, label: 'AI Assistant' },
     { id: 'finance', icon: DollarSign, label: 'Finance' },
     { id: 'search', icon: Search, label: 'Search' },
