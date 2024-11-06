@@ -13,9 +13,9 @@ interface Props {
   onSelectCard: (card: FlashCardType) => void;
   onEditCard: (cardId: string, updates: Partial<FlashCardType>) => void;
   onDeleteCard: (cardId: string) => void;
-  onReorderCards: (parentId: string | null, cards: FlashCardType[]) => void;
-  onEditNote: (cardId: string, noteId: string, updates: Partial<Note>) => void;
-  onDeleteNote: (cardId: string, noteId: string) => void;
+  onReorderCards?: (parentId: string | null, cards: FlashCardType[]) => void;
+  onEditNote?: (cardId: string, noteId: string, updates: Partial<Note>) => void;
+  onDeleteNote?: (cardId: string, noteId: string) => void;
 }
 
 export default function FlashCardView({
@@ -35,6 +35,7 @@ export default function FlashCardView({
   const [searchTerm, setSearchTerm] = useState('');
   const [newNote, setNewNote] = useState({ title: '', content: '' });
   const [newCardName, setNewCardName] = useState('');
+  const [localChildren, setLocalChildren] = useState(card.children);
 
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,12 +69,13 @@ export default function FlashCardView({
   };
 
   const handleDragEnd = (result: any) => {
-    if (!result.destination) return;
+    if (!result.destination || !onReorderCards) return;
 
-    const items = Array.from(card.children);
+    const items = Array.from(localChildren);
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
 
+    setLocalChildren(items);
     onReorderCards(card.id, items);
   };
 
@@ -82,20 +84,21 @@ export default function FlashCardView({
     note.content.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredCards = card.children.filter(child =>
+  const filteredCards = localChildren.filter(child =>
     child.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleEditSubCard = (cardId: string, updates: Partial<FlashCardType>) => {
-    const updatedChildren = card.children.map(child => 
+    const updatedChildren = localChildren.map(child => 
       child.id === cardId ? { ...child, ...updates } : child
     );
-    onEditCard(card.id, { children: updatedChildren });
+    setLocalChildren(updatedChildren);
+    onEditCard(cardId, updates);
   };
 
   const handleDeleteSubCard = (cardId: string) => {
-    const updatedChildren = card.children.filter(child => child.id !== cardId);
-    onEditCard(card.id, { children: updatedChildren });
+    const updatedChildren = localChildren.filter(child => child.id !== cardId);
+    setLocalChildren(updatedChildren);
     onDeleteCard(cardId);
   };
 
@@ -250,8 +253,8 @@ export default function FlashCardView({
                 <NoteCard
                   key={note.id}
                   note={note}
-                  onEdit={(updates) => onEditNote(card.id, note.id, updates)}
-                  onDelete={() => onDeleteNote(card.id, note.id)}
+                  onEdit={(updates) => onEditNote?.(card.id, note.id, updates)}
+                  onDelete={() => onDeleteNote?.(card.id, note.id)}
                 />
               ))}
             </div>
