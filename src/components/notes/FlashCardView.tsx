@@ -1,32 +1,32 @@
 import { useState } from 'react';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { ChevronLeft, Plus, Search } from 'lucide-react';
 import FlashCard from './FlashCard';
 import NoteCard from './NoteCard';
+import BreadcrumbNav from './BreadcrumbNav';
 import type { FlashCard as FlashCardType, Note } from '../../types';
 
 interface Props {
   card: FlashCardType;
+  cardPath: FlashCardType[];
   onBack: () => void;
   onAddNote: (cardId: string, note: Omit<Note, 'id'>) => void;
   onAddSubCard: (parentId: string, card: Omit<FlashCardType, 'id'>) => void;
-  onSelectCard: (card: FlashCardType) => void;
+  onSelectCard: (card: FlashCardType, path: FlashCardType[]) => void;
   onEditCard: (cardId: string, updates: Partial<FlashCardType>) => void;
   onDeleteCard: (cardId: string) => void;
-  onReorderCards?: (parentId: string | null, cards: FlashCardType[]) => void;
   onEditNote?: (cardId: string, noteId: string, updates: Partial<Note>) => void;
   onDeleteNote?: (cardId: string, noteId: string) => void;
 }
 
 export default function FlashCardView({
   card,
+  cardPath,
   onBack,
   onAddNote,
   onAddSubCard,
   onSelectCard,
   onEditCard,
   onDeleteCard,
-  onReorderCards,
   onEditNote,
   onDeleteNote,
 }: Props) {
@@ -35,7 +35,6 @@ export default function FlashCardView({
   const [searchTerm, setSearchTerm] = useState('');
   const [newNote, setNewNote] = useState({ title: '', content: '' });
   const [newCardName, setNewCardName] = useState('');
-  const [localChildren, setLocalChildren] = useState(card.children);
 
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,39 +67,30 @@ export default function FlashCardView({
     setIsAddingCard(false);
   };
 
-  const handleDragEnd = (result: any) => {
-    if (!result.destination || !onReorderCards) return;
-
-    const items = Array.from(localChildren);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-
-    setLocalChildren(items);
-    onReorderCards(card.id, items);
-  };
-
-  const filteredNotes = card.notes.filter(note =>
-    note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    note.content.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredCards = localChildren.filter(child =>
-    child.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleEditSubCard = (cardId: string, updates: Partial<FlashCardType>) => {
-    const updatedChildren = localChildren.map(child => 
-      child.id === cardId ? { ...child, ...updates } : child
-    );
-    setLocalChildren(updatedChildren);
-    onEditCard(cardId, updates);
-  };
-
-  const handleDeleteSubCard = (cardId: string) => {
-    const updatedChildren = localChildren.filter(child => child.id !== cardId);
-    setLocalChildren(updatedChildren);
+  const handleDeleteCard = (cardId: string) => {
     onDeleteCard(cardId);
   };
+
+  const handleDeleteNote = (noteId: string) => {
+    if (onDeleteNote) {
+      onDeleteNote(card.id, noteId);
+    }
+  };
+
+  const handleEditNote = (noteId: string, updates: Partial<Note>) => {
+    if (onEditNote) {
+      onEditNote(card.id, noteId, updates);
+    }
+  };
+
+  const filteredNotes = card.notes?.filter(note =>
+    note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    note.content.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
+
+  const filteredCards = card.children?.filter(child =>
+    child.name.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
 
   return (
     <div className="space-y-6">
@@ -111,7 +101,9 @@ export default function FlashCardView({
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-2xl font-bold text-gray-800">{card.name}</h1>
+        <div className="flex-1">
+          <BreadcrumbNav path={[...cardPath, card]} onNavigate={(card) => onSelectCard(card, cardPath)} />
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
@@ -170,7 +162,7 @@ export default function FlashCardView({
             <button
               type="submit"
               disabled={!newNote.title.trim() || !newNote.content.trim()}
-              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
             >
               Save Note
             </button>
@@ -199,7 +191,7 @@ export default function FlashCardView({
             <button
               type="submit"
               disabled={!newCardName.trim()}
-              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
             >
               Create
             </button>
@@ -211,37 +203,18 @@ export default function FlashCardView({
         {filteredCards.length > 0 && (
           <div>
             <h2 className="text-lg font-semibold mb-4">Cards</h2>
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <Droppable droppableId="cards">
-                {(provided) => (
-                  <div
-                    {...provided.droppableProps}
-                    ref={provided.innerRef}
-                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-                  >
-                    {filteredCards.map((subCard, index) => (
-                      <Draggable key={subCard.id} draggableId={subCard.id} index={index}>
-                        {(provided) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                          >
-                            <FlashCard
-                              card={subCard}
-                              onClick={() => onSelectCard(subCard)}
-                              onEdit={(updates) => handleEditSubCard(subCard.id, updates)}
-                              onDelete={() => handleDeleteSubCard(subCard.id)}
-                            />
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            </DragDropContext>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredCards.map((subCard) => (
+                <FlashCard
+                  key={subCard.id}
+                  card={subCard}
+                  onClick={() => onSelectCard(subCard, [...cardPath, card])}
+                  onEdit={(updates) => onEditCard(subCard.id, updates)}
+                  onDelete={() => handleDeleteCard(subCard.id)}
+                  onAddSubCard={onAddSubCard}
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -253,8 +226,8 @@ export default function FlashCardView({
                 <NoteCard
                   key={note.id}
                   note={note}
-                  onEdit={(updates) => onEditNote?.(card.id, note.id, updates)}
-                  onDelete={() => onDeleteNote?.(card.id, note.id)}
+                  onEdit={(updates) => handleEditNote(note.id, updates)}
+                  onDelete={() => handleDeleteNote(note.id)}
                 />
               ))}
             </div>

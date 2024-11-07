@@ -5,8 +5,8 @@ import type { FlashCard as FlashCardType, DeletedCard } from '../../types';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 interface Props {
-  cards: FlashCardType[];
-  deletedCards: DeletedCard[];
+  cards?: FlashCardType[];
+  deletedCards?: DeletedCard[];
   onAddCard: (card: Omit<FlashCardType, 'id'>) => void;
   onSelectCard: (card: FlashCardType) => void;
   onEditCard: (cardId: string, updates: Partial<FlashCardType>) => void;
@@ -15,8 +15,8 @@ interface Props {
 }
 
 export default function NotesView({
-  cards,
-  deletedCards,
+  cards = [],
+  deletedCards = [],
   onAddCard,
   onSelectCard,
   onEditCard,
@@ -44,16 +44,12 @@ export default function NotesView({
     setIsAddingCard(false);
   };
 
-  const handleDeleteCard = (cardId: string) => {
-    onDeleteCard(cardId);
-  };
-
   const filteredCards = cards.filter(card => 
-    card.name.toLowerCase().includes(searchTerm.toLowerCase())
+    card?.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredDeletedCards = deletedCards.filter(card =>
-    card.name.toLowerCase().includes(searchTerm.toLowerCase())
+    card?.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleDragEnd = (result: any) => {
@@ -123,7 +119,8 @@ export default function NotesView({
             </button>
             <button
               type="submit"
-              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              disabled={!newCardName.trim()}
+              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
             >
               Create
             </button>
@@ -175,7 +172,7 @@ export default function NotesView({
                           card={card}
                           onClick={() => onSelectCard(card)}
                           onEdit={(updates) => onEditCard(card.id, updates)}
-                          onDelete={() => handleDeleteCard(card.id)}
+                          onDelete={() => onDeleteCard(card.id)}
                         />
                       </div>
                     )}

@@ -1,6 +1,19 @@
-// Add to your existing types
-export interface DeletedCard extends FlashCard {
-  deletedAt: string;
+export interface DiaryEntry {
+  id: string;
+  content: string;
+  mood: 'happy' | 'neutral' | 'sad';
+  date: string;
+  tags: string[];
+  type: 'diary';
+  lastModified: string;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  lastModified: string;
 }
 
 export interface FlashCard {
@@ -10,5 +23,36 @@ export interface FlashCard {
   notes: Note[];
   children: FlashCard[];
   lastModified: string;
-  isDeleted?: boolean;
+}
+
+export interface DeletedCard extends FlashCard {
+  deletedAt: string;
+}
+
+export interface FinanceEntry {
+  id: string;
+  amount: number;
+  type: 'income' | 'expense';
+  category: string;
+  description?: string;
+  account: string;
+  date: string;
+}
+
+export type AccountType = 'checking' | 'savings' | 'credit' | 'cash';
+
+export interface Account {
+  id: string;
+  name: string;
+  type: AccountType;
+  balance: number;
+  currency: string;
+}
+
+export interface Todo {
+  id: string;
+  content: string;
+  completed: boolean;
+  date: string;
+  completedAt?: string;
 }
