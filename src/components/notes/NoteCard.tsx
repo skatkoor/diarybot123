@@ -1,33 +1,85 @@
 import { useState } from 'react';
-import { FileText, Edit2, Trash2 } from 'lucide-react';
+import { FileText, Edit2, Trash2, AlertCircle } from 'lucide-react';
 import type { Note } from '../../types';
 
 interface Props {
   note: Note;
-  onEdit: (noteId: string, updates: Partial<Note>) => void;
-  onDelete: (noteId: string) => void;
+  onEdit: (updates: Partial<Note>) => Promise<void>;
+  onDelete: () => Promise<void>;
 }
 
 export default function NoteCard({ note, onEdit, onDelete }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(note.title);
   const [editContent, setEditContent] = useState(note.content);
+  const [error, setError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editTitle.trim() || !editContent.trim()) return;
     
-    onEdit(note.id, {
-      title: editTitle,
-      content: editContent,
-    });
-    setIsEditing(false);
+    try {
+      setError(null);
+      await onEdit({
+        title: editTitle,
+        content: editContent,
+        lastModified: new Date().toISOString()
+      });
+      setIsEditing(false);
+    } catch (err) {
+      console.error('Failed to save note:', err);
+      setError('Failed to save note. Please try again.');
+    }
   };
+
+  const handleDelete = async () => {
+    try {
+      setError(null);
+      await onDelete();
+      setIsDeleting(false);
+    } catch (err) {
+      console.error('Failed to delete note:', err);
+      setError('Failed to delete note. Please try again.');
+    }
+  };
+
+  if (isDeleting) {
+    return (
+      <div className="group relative bg-white rounded-xl shadow-md p-6 flex flex-col items-center justify-center text-center">
+        <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+        <h3 className="text-lg font-semibold mb-2">Delete Note?</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Are you sure you want to delete "{note.title}"? This action cannot be undone.
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setIsDeleting(false)}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            className="px-4 py-2 text-sm bg-red-500 text-white rounded-md hover:bg-red-600"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="group relative bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 p-6">
       <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-white rounded-xl opacity-50 group-hover:opacity-100 transition-opacity" />
       
       <div className="relative z-10">
+        {error && (
+          <div className="mb-4 text-sm text-red-600 bg-red-50 p-2 rounded">
+            {error}
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center group-hover:bg-purple-200 transition-colors">
@@ -58,7 +110,7 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
               <Edit2 className="w-4 h-4" />
             </button>
             <button
-              onClick={() => onDelete(note.id)}
+              onClick={() => setIsDeleting(true)}
               className="p-1 text-gray-400 hover:text-red-500"
             >
               <Trash2 className="w-4 h-4" />
@@ -80,6 +132,7 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
                   setIsEditing(false);
                   setEditTitle(note.title);
                   setEditContent(note.content);
+                  setError(null);
                 }}
                 className="px-3 py-1 text-gray-600 hover:text-gray-800"
               >
@@ -88,17 +141,17 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
               <button
                 onClick={handleSave}
                 disabled={!editTitle.trim() || !editContent.trim()}
-                className="px-3 py-1 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:opacity-50"
               >
                 Save
               </button>
             </div>
           </div>
         ) : (
-          <p className="text-gray-700 line-clamp-3">{note.content}</p>
+          <p className="text-gray-700 whitespace-pre-wrap">{note.content}</p>
         )}
         
-        {note.tags.length > 0 && (
+        {note.tags && note.tags.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
             {note.tags.map((tag, index) => (
               <span

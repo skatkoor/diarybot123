@@ -12,8 +12,8 @@ interface Props {
   onSelectCard: (card: FlashCardType) => void;
   onEditCard: (cardId: string, updates: Partial<FlashCardType>) => Promise<void>;
   onDeleteCard: (cardId: string) => Promise<void>;
-  onEditNote?: (cardId: string, noteId: string, updates: Partial<Note>) => Promise<void>;
-  onDeleteNote?: (cardId: string, noteId: string) => Promise<void>;
+  onEditNote: (cardId: string, noteId: string, updates: Partial<Note>) => Promise<void>;
+  onDeleteNote: (cardId: string, noteId: string) => Promise<void>;
 }
 
 export default function FlashCardView({
@@ -25,7 +25,7 @@ export default function FlashCardView({
   onEditCard,
   onDeleteCard,
   onEditNote,
-  onDeleteNote,
+  onDeleteNote
 }: Props) {
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
@@ -92,6 +92,24 @@ export default function FlashCardView({
     } catch (err) {
       console.error('Failed to edit card:', err);
       setError('Failed to edit card. Please try again.');
+    }
+  };
+
+  const handleEditNote = async (noteId: string, updates: Partial<Note>) => {
+    try {
+      await onEditNote(card.id, noteId, updates);
+    } catch (err) {
+      console.error('Failed to edit note:', err);
+      throw err;
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      await onDeleteNote(card.id, noteId);
+    } catch (err) {
+      console.error('Failed to delete note:', err);
+      throw err;
     }
   };
 
@@ -292,8 +310,8 @@ export default function FlashCardView({
                 <NoteCard
                   key={note.id}
                   note={note}
-                  onEdit={(updates) => onEditNote?.(card.id, note.id, updates)}
-                  onDelete={() => onDeleteNote?.(card.id, note.id)}
+                  onEdit={(updates) => handleEditNote(note.id, updates)}
+                  onDelete={() => handleDeleteNote(note.id)}
                 />
               ))}
             </div>
