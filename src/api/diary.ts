@@ -11,15 +11,15 @@ export async function createDiaryEntry(content: string, mood: string, date: stri
       content,
       mood,
       date: new Date(date),
+      tags: [],
       createdAt: new Date(),
-      updatedAt: new Date(),
-      tags: []
+      updatedAt: new Date()
     }).returning();
-
+    
     return entry[0];
   } catch (error) {
     console.error('Failed to create diary entry:', error);
-    throw new Error('Failed to create diary entry');
+    throw error;
   }
 }
 
@@ -31,31 +31,33 @@ export async function getDiaryEntries() {
       .orderBy(diaryEntries.date);
   } catch (error) {
     console.error('Failed to load diary entries:', error);
-    throw new Error('Failed to load diary entries');
+    throw error;
   }
 }
 
 export async function updateDiaryEntry(id: string, content: string) {
   try {
-    return await db.update(diaryEntries)
+    const [updatedEntry] = await db.update(diaryEntries)
       .set({ 
         content, 
         updatedAt: new Date() 
       })
-      .where(eq(diaryEntries.id, id))
+      .where(eq(diaryEntries.id, id) && eq(diaryEntries.userId, DEFAULT_USER_ID))
       .returning();
+    
+    return updatedEntry;
   } catch (error) {
     console.error('Failed to update diary entry:', error);
-    throw new Error('Failed to update diary entry');
+    throw error;
   }
 }
 
 export async function deleteDiaryEntry(id: string) {
   try {
-    return await db.delete(diaryEntries)
-      .where(eq(diaryEntries.id, id));
+    await db.delete(diaryEntries)
+      .where(eq(diaryEntries.id, id) && eq(diaryEntries.userId, DEFAULT_USER_ID));
   } catch (error) {
     console.error('Failed to delete diary entry:', error);
-    throw new Error('Failed to delete diary entry');
+    throw error;
   }
 }

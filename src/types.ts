@@ -6,8 +6,7 @@ export interface DiaryEntry {
   tags: string[];
   type: 'diary';
   lastModified: string;
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt: string;
 }
 
 export interface Note {
@@ -49,12 +48,4 @@ export interface Account {
   type: AccountType;
   balance: number;
   currency: string;
-}
-
-export interface Todo {
-  id: string;
-  content: string;
-  completed: boolean;
-  date: string;
-  completedAt?: string;
 }

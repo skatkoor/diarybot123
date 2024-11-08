@@ -2,12 +2,15 @@
   "name": "diarybot",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && tsc -p tsconfig.server.json",
+    "start": "node dist/server/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "start": "node server/index.js",
     "init-db": "node scripts/init-db.js"
   },
   "dependencies": {
@@ -43,8 +46,5 @@
     "ts-jest": "^29.1.2",
     "typescript": "^5.2.2",
     "vite": "^5.1.6"
-  },
-  "engines": {
-    "node": "18.x"
   }
 }

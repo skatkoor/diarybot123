@@ -5,30 +5,47 @@ import WeekCalendar from '../calendar/WeekCalendar';
 import DiaryEntry from '../DiaryEntry';
 import NewEntry from '../NewEntry';
 import type { DiaryEntry as DiaryEntryType } from '../../types';
+import { createDiaryEntry, updateDiaryEntry, deleteDiaryEntry } from '../../api/diary';
 
 interface Props {
   entries: DiaryEntryType[];
   onNewEntry: (content: string, mood: 'happy' | 'neutral' | 'sad', date: string) => Promise<void>;
-  onDeleteEntry: (id: string) => void;
-  onEditEntry: (id: string, content: string) => void;
+  onDeleteEntry: (id: string) => Promise<void>;
+  onEditEntry: (id: string, content: string) => Promise<void>;
 }
 
 export default function DiaryView({ entries, onNewEntry, onDeleteEntry, onEditEntry }: Props) {
   const [calendarView, setCalendarView] = useState<'year' | 'week'>('week');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleNewEntry = async (content: string, mood: 'happy' | 'neutral' | 'sad', date: string) => {
     try {
       setError(null);
-      setIsSubmitting(true);
       await onNewEntry(content, mood, date);
     } catch (err) {
       console.error('Failed to create entry:', err);
       setError('Failed to save entry. Please try again.');
-    } finally {
-      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditEntry = async (id: string, content: string) => {
+    try {
+      setError(null);
+      await onEditEntry(id, content);
+    } catch (err) {
+      console.error('Failed to update entry:', err);
+      setError('Failed to update entry. Please try again.');
+    }
+  };
+
+  const handleDeleteEntry = async (id: string) => {
+    try {
+      setError(null);
+      await onDeleteEntry(id);
+    } catch (err) {
+      console.error('Failed to delete entry:', err);
+      setError('Failed to delete entry. Please try again.');
     }
   };
 
@@ -92,11 +109,7 @@ export default function DiaryView({ entries, onNewEntry, onDeleteEntry, onEditEn
           </div>
         )}
 
-        <NewEntry 
-          onSubmit={handleNewEntry} 
-          selectedDate={selectedDate}
-          isSubmitting={isSubmitting}
-        />
+        <NewEntry onSubmit={handleNewEntry} selectedDate={selectedDate} />
 
         {filteredEntries.length === 0 ? (
           <p className="text-center text-gray-500 py-8">No entries for this date</p>
@@ -106,8 +119,8 @@ export default function DiaryView({ entries, onNewEntry, onDeleteEntry, onEditEn
               <DiaryEntry
                 key={entry.id}
                 entry={entry}
-                onDelete={onDeleteEntry}
-                onEdit={onEditEntry}
+                onDelete={handleDeleteEntry}
+                onEdit={handleEditEntry}
               />
             ))}
           </div>
