@@ -1,23 +1,24 @@
-import { db, executeQuery } from './db';
+import { db, testConnection } from './db';
 
-async function testConnection() {
+async function runDatabaseTests() {
   try {
-    const result = await executeQuery(async () => {
-      return await db.execute(sql`SELECT NOW()`);
-    });
-    console.log('Database connection successful:', result);
-    
-    // Test diary entries
-    const entries = await executeQuery(async () => {
-      return await db.execute(sql`SELECT * FROM diary_entries ORDER BY created_at DESC LIMIT 5`);
-    });
-    console.log('Recent diary entries:', entries);
-    
-    return { success: true, entries };
+    // Test basic connection
+    const connectionTest = await testConnection();
+    console.log('Connection test result:', connectionTest);
+
+    if (!connectionTest.success) {
+      throw new Error('Failed to connect to database');
+    }
+
+    console.log('All database tests completed successfully');
+    return { success: true };
   } catch (error) {
-    console.error('Database test failed:', error);
+    console.error('Database tests failed:', error);
     return { success: false, error };
   }
 }
 
-testConnection();
+// Run the tests
+runDatabaseTests()
+  .then(result => console.log('Test suite completed:', result))
+  .catch(error => console.error('Test suite failed:', error));

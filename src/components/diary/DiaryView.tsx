@@ -8,7 +8,7 @@ import type { DiaryEntry as DiaryEntryType } from '../../types';
 
 interface Props {
   entries: DiaryEntryType[];
-  onNewEntry: (content: string, mood: 'happy' | 'neutral' | 'sad', date: string) => void;
+  onNewEntry: (content: string, mood: 'happy' | 'neutral' | 'sad', date: string) => Promise<void>;
   onDeleteEntry: (id: string) => void;
   onEditEntry: (id: string, content: string) => void;
 }
@@ -17,20 +17,30 @@ export default function DiaryView({ entries, onNewEntry, onDeleteEntry, onEditEn
   const [calendarView, setCalendarView] = useState<'year' | 'week'>('week');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleNewEntry = async (content: string, mood: 'happy' | 'neutral' | 'sad', date: string) => {
     try {
       setError(null);
+      setIsSubmitting(true);
       await onNewEntry(content, mood, date);
     } catch (err) {
       console.error('Failed to create entry:', err);
       setError('Failed to save entry. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const filteredEntries = entries.filter(entry => {
     const entryDate = new Date(entry.date);
-    return entryDate.toDateString() === selectedDate.toDateString();
+    const startOfDay = new Date(selectedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(selectedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    return entryDate >= startOfDay && entryDate <= endOfDay;
   });
 
   return (
@@ -82,7 +92,11 @@ export default function DiaryView({ entries, onNewEntry, onDeleteEntry, onEditEn
           </div>
         )}
 
-        <NewEntry onSubmit={handleNewEntry} selectedDate={selectedDate} />
+        <NewEntry 
+          onSubmit={handleNewEntry} 
+          selectedDate={selectedDate}
+          isSubmitting={isSubmitting}
+        />
 
         {filteredEntries.length === 0 ? (
           <p className="text-center text-gray-500 py-8">No entries for this date</p>

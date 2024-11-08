@@ -15,9 +15,10 @@ import {
 interface SidebarProps {
   activeSection: string;
   onSectionChange: (section: string) => void;
+  onResetView?: () => void;
 }
 
-export default function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
+export default function Sidebar({ activeSection, onSectionChange, onResetView }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   const menuItems = [
@@ -29,6 +30,13 @@ export default function Sidebar({ activeSection, onSectionChange }: SidebarProps
     { id: 'search', icon: Search, label: 'Search' },
     { id: 'settings', icon: Settings, label: 'Settings' },
   ];
+
+  const handleSectionChange = (sectionId: string) => {
+    if (sectionId === activeSection) {
+      onResetView?.();
+    }
+    onSectionChange(sectionId);
+  };
 
   return (
     <div
@@ -59,7 +67,7 @@ export default function Sidebar({ activeSection, onSectionChange }: SidebarProps
         {menuItems.map((item) => (
           <button
             key={item.id}
-            onClick={() => onSectionChange(item.id)}
+            onClick={() => handleSectionChange(item.id)}
             className={`w-full flex items-center gap-3 p-2 rounded-md mb-1 ${
               activeSection === item.id
                 ? 'bg-blue-50 text-blue-600'
