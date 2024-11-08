@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { FileText, Edit2, Trash2, AlertCircle, X, Copy, Check } from 'lucide-react';
+import { FileText, Edit2, Trash2, AlertCircle, X } from 'lucide-react';
 import type { Note } from '../../types';
 
 interface Props {
   note: Note;
-  onEdit: (updates: Partial<Note>) => void;
-  onDelete: () => void;
+  onEdit: (noteId: string, updates: Partial<Note>) => void;
+  onDelete: (noteId: string) => void;
 }
 
 export default function NoteCard({ note, onEdit, onDelete }: Props) {
@@ -14,7 +14,6 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
   const [editContent, setEditContent] = useState(note.content);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
-  const [copied, setCopied] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,22 +37,20 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
   const handleSave = () => {
     if (!editTitle.trim() || !editContent.trim()) return;
     
-    onEdit({
+    onEdit(note.id, {
       title: editTitle,
       content: editContent,
-      lastModified: new Date().toISOString()
     });
     setIsEditing(false);
   };
 
-  const handleCopyContent = async () => {
-    try {
-      await navigator.clipboard.writeText(note.content);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy content:', err);
-    }
+  const handleDelete = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = () => {
+    onDelete(note.id);
+    setShowDeleteConfirm(false);
   };
 
   if (showDeleteConfirm) {
@@ -74,7 +71,7 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
               Cancel
             </button>
             <button
-              onClick={onDelete}
+              onClick={confirmDelete}
               className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
             >
               Delete
@@ -119,20 +116,13 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
             </div>
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <button
-                onClick={handleCopyContent}
-                className="p-1 text-gray-400 hover:text-purple-500"
-                title="Copy content"
-              >
-                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              </button>
-              <button
                 onClick={() => setIsEditing(!isEditing)}
                 className="p-1 text-gray-400 hover:text-purple-500"
               >
                 <Edit2 className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setShowDeleteConfirm(true)}
+                onClick={handleDelete}
                 className="p-1 text-gray-400 hover:text-red-500"
               >
                 <Trash2 className="w-4 h-4" />
@@ -162,7 +152,7 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
                 <button
                   onClick={handleSave}
                   disabled={!editTitle.trim() || !editContent.trim()}
-                  className="px-3 py-1 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:opacity-50"
+                  className="px-3 py-1 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Save
                 </button>
@@ -172,7 +162,7 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
             <p className="text-gray-700 line-clamp-3">{note.content}</p>
           )}
           
-          {note.tags?.length > 0 && (
+          {note.tags.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
               {note.tags.map((tag, index) => (
                 <span
@@ -189,6 +179,7 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-purple-600 rounded-b-xl transform scale-x-0 group-hover:scale-x-100 transition-transform" />
       </div>
 
+      {/* Full Content Modal */}
       {showFullContent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div 
@@ -207,21 +198,12 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleCopyContent}
-                  className="p-2 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-700"
-                  title="Copy content"
-                >
-                  {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                </button>
-                <button
-                  onClick={() => setShowFullContent(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-700"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
+              <button
+                onClick={() => setShowFullContent(false)}
+                className="p-2 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
             
             <div className="p-6">
@@ -231,7 +213,7 @@ export default function NoteCard({ note, onEdit, onDelete }: Props) {
                 ))}
               </div>
               
-              {note.tags?.length > 0 && (
+              {note.tags.length > 0 && (
                 <div className="mt-6 pt-6 border-t">
                   <h3 className="text-sm font-medium text-gray-500 mb-2">Tags</h3>
                   <div className="flex flex-wrap gap-2">
