@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/neon-http';
 import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core';
 
 const DATABASE_URL = process.env.DATABASE_URL || '';
+
 const sql = neon(DATABASE_URL);
 export const db = drizzle(sql);
 
@@ -50,6 +51,8 @@ export const flashcards = pgTable('flashcards', {
 // Database initialization
 export async function initializeDatabase() {
   try {
+    console.log('Initializing database...');
+    
     // Create diary entries table
     await sql`
       CREATE TABLE IF NOT EXISTS diary_entries (

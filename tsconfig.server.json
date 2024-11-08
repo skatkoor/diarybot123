@@ -10,7 +10,11 @@
     "rootDir": "src/server",
     "composite": true,
     "declaration": true,
-    "noEmit": false
+    "noEmit": false,
+    "allowJs": true,
+    "checkJs": false,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true
   },
   "include": ["src/server/**/*"],
   "exclude": ["node_modules", "dist"]

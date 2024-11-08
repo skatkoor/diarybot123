@@ -7,13 +7,13 @@ import type { FlashCard as FlashCardType, Note } from '../../types';
 interface Props {
   card: FlashCardType;
   onBack: () => void;
-  onAddNote: (cardId: string, note: Omit<Note, 'id'>) => void;
-  onAddSubCard: (parentId: string, card: Omit<FlashCardType, 'id'>) => void;
+  onAddNote: (cardId: string, note: Omit<Note, 'id'>) => Promise<void>;
+  onAddSubCard: (parentId: string, card: Omit<FlashCardType, 'id'>) => Promise<void>;
   onSelectCard: (card: FlashCardType) => void;
-  onEditCard?: (cardId: string, updates: Partial<FlashCardType>) => void;
-  onDeleteCard?: (cardId: string) => void;
-  onEditNote?: (cardId: string, noteId: string, updates: Partial<Note>) => void;
-  onDeleteNote?: (cardId: string, noteId: string) => void;
+  onEditCard: (cardId: string, updates: Partial<FlashCardType>) => Promise<void>;
+  onDeleteCard: (cardId: string) => Promise<void>;
+  onEditNote?: (cardId: string, noteId: string, updates: Partial<Note>) => Promise<void>;
+  onDeleteNote?: (cardId: string, noteId: string) => Promise<void>;
 }
 
 export default function FlashCardView({
@@ -25,7 +25,7 @@ export default function FlashCardView({
   onEditCard,
   onDeleteCard,
   onEditNote,
-  onDeleteNote
+  onDeleteNote,
 }: Props) {
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
@@ -34,45 +34,65 @@ export default function FlashCardView({
   const [newCardName, setNewCardName] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState(card.name);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleAddNote = (e: React.FormEvent) => {
+  const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNote.title.trim() || !newNote.content.trim()) return;
 
-    onAddNote(card.id, {
-      title: newNote.title,
-      content: newNote.content,
-      tags: [],
-      lastModified: new Date().toISOString(),
-      createdAt: new Date().toISOString()
-    });
-
-    setNewNote({ title: '', content: '' });
-    setIsAddingNote(false);
+    try {
+      setError(null);
+      await onAddNote(card.id, {
+        title: newNote.title,
+        content: newNote.content,
+        tags: [],
+        lastModified: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      });
+      
+      setNewNote({ title: '', content: '' });
+      setIsAddingNote(false);
+    } catch (err) {
+      console.error('Failed to add note:', err);
+      setError('Failed to add note. Please try again.');
+    }
   };
 
-  const handleAddCard = (e: React.FormEvent) => {
+  const handleAddCard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCardName.trim()) return;
 
-    onAddSubCard(card.id, {
-      name: newCardName,
-      type: 'folder',
-      notes: [],
-      children: [],
-      lastModified: new Date().toISOString(),
-      createdAt: new Date().toISOString()
-    });
-
-    setNewCardName('');
-    setIsAddingCard(false);
+    try {
+      setError(null);
+      await onAddSubCard(card.id, {
+        name: newCardName,
+        type: 'folder',
+        notes: [],
+        children: [],
+        lastModified: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      });
+      
+      setNewCardName('');
+      setIsAddingCard(false);
+    } catch (err) {
+      console.error('Failed to add card:', err);
+      setError('Failed to add card. Please try again.');
+    }
   };
 
-  const handleEditCard = (e: React.FormEvent) => {
+  const handleEditCard = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingName.trim() || !onEditCard) return;
-    onEditCard(card.id, { name: editingName });
-    setIsEditing(false);
+    if (!editingName.trim()) return;
+
+    try {
+      setError(null);
+      await onEditCard(card.id, { name: editingName });
+      setIsEditing(false);
+    } catch (err) {
+      console.error('Failed to edit card:', err);
+      setError('Failed to edit card. Please try again.');
+    }
   };
 
   const filteredNotes = card.notes?.filter(note =>
@@ -124,26 +144,28 @@ export default function FlashCardView({
           ) : (
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-gray-800">{card.name}</h1>
-              {onEditCard && (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="p-1 hover:bg-gray-100 rounded-full"
-                >
-                  <Edit2 className="w-4 h-4 text-gray-500" />
-                </button>
-              )}
-              {onDeleteCard && (
-                <button
-                  onClick={() => onDeleteCard(card.id)}
-                  className="p-1 hover:bg-gray-100 rounded-full text-red-500"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
+              <button
+                onClick={() => setIsEditing(true)}
+                className="p-1 hover:bg-gray-100 rounded-full"
+              >
+                <Edit2 className="w-4 h-4 text-gray-500" />
+              </button>
+              <button
+                onClick={() => onDeleteCard(card.id)}
+                className="p-1 hover:bg-gray-100 rounded-full text-red-500"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           )}
         </div>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
+          {error}
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <button
@@ -254,7 +276,7 @@ export default function FlashCardView({
                   key={subCard.id}
                   card={subCard}
                   onClick={() => onSelectCard(subCard)}
-                  onEdit={(cardId, updates) => onEditCard?.(cardId, updates)}
+                  onEdit={onEditCard}
                   onDelete={onDeleteCard}
                 />
               ))}
