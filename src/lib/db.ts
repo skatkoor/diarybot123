@@ -2,8 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core';
 
-const DATABASE_URL = 'postgresql://neondb_owner:qKQBVp7T5Sro@ep-damp-bread-a4zxktgw.us-east-1.aws.neon.tech/neondb';
-
+const DATABASE_URL = process.env.DATABASE_URL || '';
 const sql = neon(DATABASE_URL);
 export const db = drizzle(sql);
 
@@ -21,11 +20,31 @@ export const diaryEntries = pgTable('diary_entries', {
 
 export const todos = pgTable('todos', {
   id: text('id').primaryKey(),
-  userId: text('user_id').notNull(), // Make user_id required
+  userId: text('user_id').notNull(),
   content: text('content').notNull(),
   completed: boolean('completed').default(false),
   date: timestamp('date').defaultNow(),
   completedAt: timestamp('completed_at')
+});
+
+export const notes = pgTable('notes', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  cardId: text('card_id').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  tags: text('tags').array()
+});
+
+export const flashcards = pgTable('flashcards', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  parentId: text('parent_id'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
 });
 
 // Database initialization
@@ -45,7 +64,7 @@ export async function initializeDatabase() {
       )
     `;
 
-    // Create todos table with user_id
+    // Create todos table
     await sql`
       CREATE TABLE IF NOT EXISTS todos (
         id TEXT PRIMARY KEY,
@@ -59,7 +78,7 @@ export async function initializeDatabase() {
 
     // Create indexes
     await sql`CREATE INDEX IF NOT EXISTS idx_diary_user ON diary_entries(user_id)`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_diary_date ON diary_entries(created_at)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_diary_date ON diary_entries(date)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_todos_user ON todos(user_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_todos_date ON todos(date)`;
 

@@ -4,7 +4,6 @@ export interface DiaryEntry {
   mood: 'happy' | 'neutral' | 'sad';
   date: string;
   tags: string[];
-  type: 'diary';
   lastModified: string;
   createdAt: string;
 }
@@ -15,6 +14,7 @@ export interface Note {
   content: string;
   tags: string[];
   lastModified: string;
+  createdAt: string;
 }
 
 export interface FlashCard {
@@ -24,6 +24,7 @@ export interface FlashCard {
   notes: Note[];
   children: FlashCard[];
   lastModified: string;
+  createdAt: string;
 }
 
 export interface DeletedCard extends FlashCard {

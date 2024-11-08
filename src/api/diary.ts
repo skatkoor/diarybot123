@@ -10,7 +10,7 @@ export async function createDiaryEntry(content: string, mood: string, date: stri
       userId: DEFAULT_USER_ID,
       content,
       mood,
-      date: new Date(date),
+      date,
       tags: [],
       createdAt: new Date(),
       updatedAt: new Date()

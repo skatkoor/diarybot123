@@ -10,17 +10,17 @@ interface Props {
   onAddNote: (cardId: string, note: Omit<Note, 'id'>) => void;
   onAddSubCard: (parentId: string, card: Omit<FlashCardType, 'id'>) => void;
   onSelectCard: (card: FlashCardType) => void;
-  onEditCard?: (cardId: string, name: string) => void;
+  onEditCard?: (cardId: string, updates: Partial<FlashCardType>) => void;
   onDeleteCard?: (cardId: string) => void;
   onEditNote?: (cardId: string, noteId: string, updates: Partial<Note>) => void;
   onDeleteNote?: (cardId: string, noteId: string) => void;
 }
 
-export default function FlashCardView({ 
-  card, 
-  onBack, 
-  onAddNote, 
-  onAddSubCard, 
+export default function FlashCardView({
+  card,
+  onBack,
+  onAddNote,
+  onAddSubCard,
   onSelectCard,
   onEditCard,
   onDeleteCard,
@@ -29,23 +29,24 @@ export default function FlashCardView({
 }: Props) {
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [newNote, setNewNote] = useState({ title: '', content: '' });
   const [newCardName, setNewCardName] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState(card.name);
 
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNote.title.trim() || !newNote.content.trim()) return;
-    
+
     onAddNote(card.id, {
       title: newNote.title,
       content: newNote.content,
       tags: [],
       lastModified: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     });
-    
+
     setNewNote({ title: '', content: '' });
     setIsAddingNote(false);
   };
@@ -53,15 +54,16 @@ export default function FlashCardView({
   const handleAddCard = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCardName.trim()) return;
-    
+
     onAddSubCard(card.id, {
       name: newCardName,
       type: 'folder',
       notes: [],
       children: [],
       lastModified: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     });
-    
+
     setNewCardName('');
     setIsAddingCard(false);
   };
@@ -69,18 +71,18 @@ export default function FlashCardView({
   const handleEditCard = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingName.trim() || !onEditCard) return;
-    onEditCard(card.id, editingName);
+    onEditCard(card.id, { name: editingName });
     setIsEditing(false);
   };
 
-  const filteredNotes = card.notes.filter(note =>
+  const filteredNotes = card.notes?.filter(note =>
     note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     note.content.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ) || [];
 
-  const filteredSubCards = card.children.filter(child =>
+  const filteredCards = card.children?.filter(child =>
     child.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ) || [];
 
   return (
     <div className="space-y-6">
@@ -103,13 +105,17 @@ export default function FlashCardView({
               />
               <button
                 type="submit"
-                className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                disabled={!editingName.trim()}
+                className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
               >
                 Save
               </button>
               <button
                 type="button"
-                onClick={() => setIsEditing(false)}
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditingName(card.name);
+                }}
                 className="px-3 py-1 text-gray-600 hover:text-gray-800"
               >
                 Cancel
@@ -187,14 +193,18 @@ export default function FlashCardView({
           <div className="mt-4 flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => setIsAddingNote(false)}
+              onClick={() => {
+                setIsAddingNote(false);
+                setNewNote({ title: '', content: '' });
+              }}
               className="px-3 py-1 text-gray-600 hover:text-gray-800"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              disabled={!newNote.title.trim() || !newNote.content.trim()}
+              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
             >
               Save Note
             </button>
@@ -215,14 +225,18 @@ export default function FlashCardView({
           <div className="mt-3 flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => setIsAddingCard(false)}
+              onClick={() => {
+                setIsAddingCard(false);
+                setNewCardName('');
+              }}
               className="px-3 py-1 text-gray-600 hover:text-gray-800"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              disabled={!newCardName.trim()}
+              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
             >
               Create
             </button>
@@ -231,16 +245,16 @@ export default function FlashCardView({
       )}
 
       <div className="space-y-8">
-        {filteredSubCards.length > 0 && (
+        {filteredCards.length > 0 && (
           <div>
             <h2 className="text-lg font-semibold mb-4">Cards</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredSubCards.map((subCard) => (
+              {filteredCards.map((subCard) => (
                 <FlashCard
                   key={subCard.id}
                   card={subCard}
                   onClick={() => onSelectCard(subCard)}
-                  onEdit={onEditCard}
+                  onEdit={(cardId, updates) => onEditCard?.(cardId, updates)}
                   onDelete={onDeleteCard}
                 />
               ))}
@@ -253,11 +267,11 @@ export default function FlashCardView({
             <h2 className="text-lg font-semibold mb-4">Notes</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredNotes.map((note) => (
-                <NoteCard 
-                  key={note.id} 
+                <NoteCard
+                  key={note.id}
                   note={note}
-                  onEdit={onEditNote ? (updates) => onEditNote(card.id, note.id, updates) : undefined}
-                  onDelete={onDeleteNote ? () => onDeleteNote(card.id, note.id) : undefined}
+                  onEdit={(updates) => onEditNote?.(card.id, note.id, updates)}
+                  onDelete={() => onDeleteNote?.(card.id, note.id)}
                 />
               ))}
             </div>
