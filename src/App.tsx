@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AuthWrapper } from './components/auth/AuthWrapper';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -9,66 +9,16 @@ import FlashCardView from './components/notes/FlashCardView';
 import TodoView from './components/todo/TodoView';
 import type { DiaryEntry, FinanceEntry, Account, FlashCard, Note, DeletedCard } from './types';
 
-// Local storage keys
-const STORAGE_KEYS = {
-  FLASHCARDS: 'diarybot-flashcards',
-  DELETED_CARDS: 'diarybot-deleted-cards',
-  DIARY_ENTRIES: 'diarybot-diary-entries',
-  FINANCE_ENTRIES: 'diarybot-finance-entries',
-  ACCOUNTS: 'diarybot-accounts'
-};
-
 export default function App() {
   const [activeSection, setActiveSection] = useState('diary');
   const [activeCard, setActiveCard] = useState<FlashCard | null>(null);
   const [cardPath, setCardPath] = useState<FlashCard[]>([]);
   
-  // Initialize state from localStorage or default to empty arrays
-  const [entries, setEntries] = useState<DiaryEntry[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.DIARY_ENTRIES);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [financeEntries, setFinanceEntries] = useState<FinanceEntry[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.FINANCE_ENTRIES);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [accounts, setAccounts] = useState<Account[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [flashcards, setFlashcards] = useState<FlashCard[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.FLASHCARDS);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [deletedCards, setDeletedCards] = useState<DeletedCard[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.DELETED_CARDS);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // Save to localStorage whenever data changes
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FLASHCARDS, JSON.stringify(flashcards));
-  }, [flashcards]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.DELETED_CARDS, JSON.stringify(deletedCards));
-  }, [deletedCards]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.DIARY_ENTRIES, JSON.stringify(entries));
-  }, [entries]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FINANCE_ENTRIES, JSON.stringify(financeEntries));
-  }, [financeEntries]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
-  }, [accounts]);
+  const [entries, setEntries] = useState<DiaryEntry[]>([]);
+  const [financeEntries, setFinanceEntries] = useState<FinanceEntry[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [flashcards, setFlashcards] = useState<FlashCard[]>([]);
+  const [deletedCards, setDeletedCards] = useState<DeletedCard[]>([]);
 
   // Helper function to find and update a card at any nesting level
   const findAndUpdateCard = (cards: FlashCard[], cardId: string, updateFn: (card: FlashCard) => FlashCard): FlashCard[] => {
@@ -206,31 +156,6 @@ export default function App() {
     }
   };
 
-  const handleAddNote = (cardId: string, note: Omit<Note, 'id'>) => {
-    const newNote: Note = {
-      ...note,
-      id: Date.now().toString(),
-    };
-
-    setFlashcards(prevCards => {
-      const updatedCards = findAndUpdateCard(prevCards, cardId, card => ({
-        ...card,
-        notes: [...(card.notes || []), newNote],
-        lastModified: new Date().toISOString(),
-      }));
-
-      // Update active card if needed
-      if (activeCard?.id === cardId) {
-        const updatedActiveCard = findCardById(updatedCards, cardId);
-        if (updatedActiveCard) {
-          setActiveCard(updatedActiveCard);
-        }
-      }
-
-      return updatedCards;
-    });
-  };
-
   const handleEditNote = (cardId: string, noteId: string, updates: Partial<Note>) => {
     setFlashcards(prevCards => {
       const updatedCards = findAndUpdateCard(prevCards, cardId, card => ({
@@ -260,6 +185,31 @@ export default function App() {
       const updatedCards = findAndUpdateCard(prevCards, cardId, card => ({
         ...card,
         notes: card.notes?.filter(note => note.id !== noteId) || [],
+        lastModified: new Date().toISOString(),
+      }));
+
+      // Update active card if needed
+      if (activeCard?.id === cardId) {
+        const updatedActiveCard = findCardById(updatedCards, cardId);
+        if (updatedActiveCard) {
+          setActiveCard(updatedActiveCard);
+        }
+      }
+
+      return updatedCards;
+    });
+  };
+
+  const handleAddNote = (cardId: string, note: Omit<Note, 'id'>) => {
+    const newNote: Note = {
+      ...note,
+      id: Date.now().toString(),
+    };
+
+    setFlashcards(prevCards => {
+      const updatedCards = findAndUpdateCard(prevCards, cardId, card => ({
+        ...card,
+        notes: [...(card.notes || []), newNote],
         lastModified: new Date().toISOString(),
       }));
 
