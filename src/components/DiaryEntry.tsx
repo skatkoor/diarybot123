@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Smile, Meh, Frown, Tag, Calendar, Edit2, Trash2, List } from 'lucide-react';
 import type { DiaryEntry } from '../types';
 
@@ -18,51 +18,17 @@ export default function DiaryEntry({ entry, onDelete, onEdit }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(entry.content);
   const [isBulletMode, setIsBulletMode] = useState(entry.content.includes('• '));
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
   const MoodIcon = moodIcons[entry.mood];
 
-  const handleSave = async () => {
-    try {
-      await onEdit(entry.id, editContent);
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Failed to save entry:', error);
-    }
+  const handleSave = () => {
+    onEdit(entry.id, editContent);
+    setIsEditing(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && isBulletMode && textareaRef.current) {
+    if (isBulletMode && e.key === 'Enter') {
       e.preventDefault();
-      const textarea = textareaRef.current;
-      const cursorPosition = textarea.selectionStart;
-      const currentContent = editContent;
-      const beforeCursor = currentContent.substring(0, cursorPosition);
-      const afterCursor = currentContent.substring(cursorPosition);
-      
-      const currentLine = beforeCursor.split('\n').pop() || '';
-      if (currentLine.trim() === '•') {
-        const newContent = beforeCursor.slice(0, -1) + '\n' + afterCursor;
-        setEditContent(newContent);
-        
-        requestAnimationFrame(() => {
-          if (textareaRef.current) {
-            textareaRef.current.selectionStart = beforeCursor.length;
-            textareaRef.current.selectionEnd = beforeCursor.length;
-          }
-        });
-      } else {
-        const newContent = beforeCursor + '\n• ' + afterCursor;
-        setEditContent(newContent);
-        
-        requestAnimationFrame(() => {
-          if (textareaRef.current) {
-            const newPosition = beforeCursor.length + 3;
-            textareaRef.current.selectionStart = newPosition;
-            textareaRef.current.selectionEnd = newPosition;
-          }
-        });
-      }
+      setEditContent(prev => prev + '\n• ');
     }
   };
 
@@ -78,14 +44,7 @@ export default function DiaryEntry({ entry, onDelete, onEdit }: Props) {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-gray-500" />
-          <span className="text-sm text-gray-600">
-            {new Date(entry.date).toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
-          </span>
+          <span className="text-sm text-gray-600">{entry.date}</span>
         </div>
         <div className="flex items-center gap-3">
           <MoodIcon className={`w-5 h-5 ${
@@ -114,11 +73,10 @@ export default function DiaryEntry({ entry, onDelete, onEdit }: Props) {
               <List className="w-5 h-5" />
             </button>
             <span className="text-sm text-gray-500">
-              {isBulletMode ? 'Press Enter for new bullet point, Shift+Enter for blank line' : 'Click to enable bullet points'}
+              {isBulletMode ? 'Press Enter for new bullet point' : 'Click to enable bullet points'}
             </span>
           </div>
           <textarea
-            ref={textareaRef}
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -148,7 +106,7 @@ export default function DiaryEntry({ entry, onDelete, onEdit }: Props) {
         <p className="text-gray-700 whitespace-pre-wrap">{entry.content}</p>
       )}
 
-      {entry.tags && entry.tags.length > 0 && (
+      {entry.tags.length > 0 && (
         <div className="mt-4 flex items-center gap-2 flex-wrap">
           <Tag className="w-4 h-4 text-gray-500" />
           {entry.tags.map((tag) => (

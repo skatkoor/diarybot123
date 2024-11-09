@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ChevronLeft, Plus, Search, Edit2, Trash2 } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { ChevronLeft, Plus, Search } from 'lucide-react';
 import FlashCard from './FlashCard';
 import NoteCard from './NoteCard';
 import type { FlashCard as FlashCardType, Note } from '../../types';
@@ -7,13 +8,14 @@ import type { FlashCard as FlashCardType, Note } from '../../types';
 interface Props {
   card: FlashCardType;
   onBack: () => void;
-  onAddNote: (cardId: string, note: Omit<Note, 'id'>) => Promise<void>;
-  onAddSubCard: (parentId: string, card: Omit<FlashCardType, 'id'>) => Promise<void>;
+  onAddNote: (cardId: string, note: Omit<Note, 'id'>) => void;
+  onAddSubCard: (parentId: string, card: Omit<FlashCardType, 'id'>) => void;
   onSelectCard: (card: FlashCardType) => void;
-  onEditCard: (cardId: string, updates: Partial<FlashCardType>) => Promise<void>;
-  onDeleteCard: (cardId: string) => Promise<void>;
-  onEditNote: (cardId: string, noteId: string, updates: Partial<Note>) => Promise<void>;
-  onDeleteNote: (cardId: string, noteId: string) => Promise<void>;
+  onEditCard: (cardId: string, updates: Partial<FlashCardType>) => void;
+  onDeleteCard: (cardId: string) => void;
+  onReorderCards: (parentId: string | null, cards: FlashCardType[]) => void;
+  onEditNote: (cardId: string, noteId: string, updates: Partial<Note>) => void;
+  onDeleteNote: (cardId: string, noteId: string) => void;
 }
 
 export default function FlashCardView({
@@ -24,166 +26,90 @@ export default function FlashCardView({
   onSelectCard,
   onEditCard,
   onDeleteCard,
+  onReorderCards,
   onEditNote,
-  onDeleteNote
+  onDeleteNote,
 }: Props) {
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [newNote, setNewNote] = useState({ title: '', content: '' });
   const [newCardName, setNewCardName] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingName, setEditingName] = useState(card.name);
-  const [error, setError] = useState<string | null>(null);
 
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNote.title.trim() || !newNote.content.trim()) return;
-
-    try {
-      setError(null);
-      await onAddNote(card.id, {
-        title: newNote.title,
-        content: newNote.content,
-        tags: [],
-        lastModified: new Date().toISOString(),
-        createdAt: new Date().toISOString()
-      });
-      
-      setNewNote({ title: '', content: '' });
-      setIsAddingNote(false);
-    } catch (err) {
-      console.error('Failed to add note:', err);
-      setError('Failed to add note. Please try again.');
-    }
+    
+    await onAddNote(card.id, {
+      title: newNote.title,
+      content: newNote.content,
+      tags: [],
+      lastModified: new Date().toISOString(),
+    });
+    
+    setNewNote({ title: '', content: '' });
+    setIsAddingNote(false);
   };
 
   const handleAddCard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCardName.trim()) return;
-
-    try {
-      setError(null);
-      await onAddSubCard(card.id, {
-        name: newCardName,
-        type: 'folder',
-        notes: [],
-        children: [],
-        lastModified: new Date().toISOString(),
-        createdAt: new Date().toISOString()
-      });
-      
-      setNewCardName('');
-      setIsAddingCard(false);
-    } catch (err) {
-      console.error('Failed to add card:', err);
-      setError('Failed to add card. Please try again.');
-    }
+    
+    await onAddSubCard(card.id, {
+      name: newCardName,
+      type: 'folder',
+      notes: [],
+      children: [],
+      lastModified: new Date().toISOString(),
+    });
+    
+    setNewCardName('');
+    setIsAddingCard(false);
   };
 
-  const handleEditCard = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingName.trim()) return;
+  const handleDragEnd = (result: any) => {
+    if (!result.destination) return;
 
-    try {
-      setError(null);
-      await onEditCard(card.id, { name: editingName });
-      setIsEditing(false);
-    } catch (err) {
-      console.error('Failed to edit card:', err);
-      setError('Failed to edit card. Please try again.');
-    }
+    const items = Array.from(card.children);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    onReorderCards(card.id, items);
   };
 
-  const handleEditNote = async (noteId: string, updates: Partial<Note>) => {
-    try {
-      await onEditNote(card.id, noteId, updates);
-    } catch (err) {
-      console.error('Failed to edit note:', err);
-      throw err;
-    }
-  };
-
-  const handleDeleteNote = async (noteId: string) => {
-    try {
-      await onDeleteNote(card.id, noteId);
-    } catch (err) {
-      console.error('Failed to delete note:', err);
-      throw err;
-    }
-  };
-
-  const filteredNotes = card.notes?.filter(note =>
+  const filteredNotes = card.notes.filter(note =>
     note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     note.content.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  );
 
-  const filteredCards = card.children?.filter(child =>
+  const filteredCards = card.children.filter(child =>
     child.name.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  );
+
+  const handleEditSubCard = (cardId: string, updates: Partial<FlashCardType>) => {
+    const updatedChildren = card.children.map(child => 
+      child.id === cardId ? { ...child, ...updates } : child
+    );
+    onEditCard(card.id, { children: updatedChildren });
+  };
+
+  const handleDeleteSubCard = (cardId: string) => {
+    const updatedChildren = card.children.filter(child => child.id !== cardId);
+    onEditCard(card.id, { children: updatedChildren });
+    onDeleteCard(cardId);
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-gray-100 rounded-full"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          {isEditing ? (
-            <form onSubmit={handleEditCard} className="flex items-center gap-2">
-              <input
-                type="text"
-                value={editingName}
-                onChange={(e) => setEditingName(e.target.value)}
-                className="px-3 py-1 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                autoFocus
-              />
-              <button
-                type="submit"
-                disabled={!editingName.trim()}
-                className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsEditing(false);
-                  setEditingName(card.name);
-                }}
-                className="px-3 py-1 text-gray-600 hover:text-gray-800"
-              >
-                Cancel
-              </button>
-            </form>
-          ) : (
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-800">{card.name}</h1>
-              <button
-                onClick={() => setIsEditing(true)}
-                className="p-1 hover:bg-gray-100 rounded-full"
-              >
-                <Edit2 className="w-4 h-4 text-gray-500" />
-              </button>
-              <button
-                onClick={() => onDeleteCard(card.id)}
-                className="p-1 hover:bg-gray-100 rounded-full text-red-500"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </div>
+      <div className="flex items-center gap-4">
+        <button
+          onClick={onBack}
+          className="p-2 hover:bg-gray-100 rounded-full"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <h1 className="text-2xl font-bold text-gray-800">{card.name}</h1>
       </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
-          {error}
-        </div>
-      )}
 
       <div className="flex items-center gap-2">
         <button
@@ -233,10 +159,7 @@ export default function FlashCardView({
           <div className="mt-4 flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => {
-                setIsAddingNote(false);
-                setNewNote({ title: '', content: '' });
-              }}
+              onClick={() => setIsAddingNote(false)}
               className="px-3 py-1 text-gray-600 hover:text-gray-800"
             >
               Cancel
@@ -244,7 +167,7 @@ export default function FlashCardView({
             <button
               type="submit"
               disabled={!newNote.title.trim() || !newNote.content.trim()}
-              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Save Note
             </button>
@@ -265,10 +188,7 @@ export default function FlashCardView({
           <div className="mt-3 flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => {
-                setIsAddingCard(false);
-                setNewCardName('');
-              }}
+              onClick={() => setIsAddingCard(false)}
               className="px-3 py-1 text-gray-600 hover:text-gray-800"
             >
               Cancel
@@ -276,7 +196,7 @@ export default function FlashCardView({
             <button
               type="submit"
               disabled={!newCardName.trim()}
-              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Create
             </button>
@@ -288,17 +208,37 @@ export default function FlashCardView({
         {filteredCards.length > 0 && (
           <div>
             <h2 className="text-lg font-semibold mb-4">Cards</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredCards.map((subCard) => (
-                <FlashCard
-                  key={subCard.id}
-                  card={subCard}
-                  onClick={() => onSelectCard(subCard)}
-                  onEdit={onEditCard}
-                  onDelete={onDeleteCard}
-                />
-              ))}
-            </div>
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="cards">
+                {(provided) => (
+                  <div
+                    {...provided.droppableProps}
+                    ref={provided.innerRef}
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+                  >
+                    {filteredCards.map((subCard, index) => (
+                      <Draggable key={subCard.id} draggableId={subCard.id} index={index}>
+                        {(provided) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                          >
+                            <FlashCard
+                              card={subCard}
+                              onClick={() => onSelectCard(subCard)}
+                              onEdit={(updates) => handleEditSubCard(subCard.id, updates)}
+                              onDelete={() => handleDeleteSubCard(subCard.id)}
+                            />
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
           </div>
         )}
 
@@ -310,8 +250,8 @@ export default function FlashCardView({
                 <NoteCard
                   key={note.id}
                   note={note}
-                  onEdit={(updates) => handleEditNote(note.id, updates)}
-                  onDelete={() => handleDeleteNote(note.id)}
+                  onEdit={(updates) => onEditNote(card.id, note.id, updates)}
+                  onDelete={() => onDeleteNote(card.id, note.id)}
                 />
               ))}
             </div>

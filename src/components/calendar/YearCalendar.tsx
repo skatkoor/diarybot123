@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { DiaryEntry } from '../../types';
 
 interface Props {
   onDateSelect: (date: Date) => void;
-  entries: DiaryEntry[];
+  entries: { date: string }[];
 }
 
 export default function YearCalendar({ onDateSelect, entries }: Props) {
@@ -30,11 +29,8 @@ export default function YearCalendar({ onDateSelect, entries }: Props) {
   };
 
   const hasEntryOnDate = (year: number, month: number, day: number) => {
-    const calendarDate = new Date(year, month, day);
-    return entries.some(entry => {
-      const entryDate = new Date(entry.date);
-      return entryDate.toDateString() === calendarDate.toDateString();
-    });
+    const dateStr = new Date(year, month, day).toLocaleDateString();
+    return entries.some(entry => new Date(entry.date).toLocaleDateString() === dateStr);
   };
 
   return (
@@ -73,21 +69,15 @@ export default function YearCalendar({ onDateSelect, entries }: Props) {
               {Array.from({ length: getDaysInMonth(month) }).map((_, i) => {
                 const day = i + 1;
                 const hasEntry = hasEntryOnDate(year, month.getMonth(), day);
-                const isToday = new Date(year, month.getMonth(), day).toDateString() === 
-                               new Date().toDateString();
-                
                 return (
                   <button
                     key={`day-${month.getMonth()}-${day}`}
                     onClick={() => onDateSelect(new Date(year, month.getMonth(), day))}
-                    className={`text-center p-1 rounded-full relative
-                      ${isToday ? 'bg-blue-100 text-blue-600 font-bold' : ''}
-                      ${hasEntry ? 'bg-blue-50 text-blue-600' : 'hover:bg-blue-50'}`}
+                    className={`text-center p-1 rounded-full hover:bg-blue-50 ${
+                      hasEntry ? 'bg-blue-100 text-blue-600' : ''
+                    }`}
                   >
                     {day}
-                    {hasEntry && (
-                      <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full" />
-                    )}
                   </button>
                 );
               })}

@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { DiaryEntry } from '../../types';
 
 interface Props {
   onDateSelect: (date: Date) => void;
-  entries: DiaryEntry[];
+  entries: { date: string }[];
 }
 
 export default function WeekCalendar({ onDateSelect, entries }: Props) {
@@ -31,14 +30,8 @@ export default function WeekCalendar({ onDateSelect, entries }: Props) {
   };
 
   const hasEntryOnDate = (date: Date) => {
-    return entries.some(entry => {
-      const entryDate = new Date(entry.date);
-      return entryDate.toDateString() === date.toDateString();
-    });
-  };
-
-  const handleDateSelect = (date: Date) => {
-    onDateSelect(date);
+    const dateStr = date.toLocaleDateString();
+    return entries.some(entry => new Date(entry.date).toLocaleDateString() === dateStr);
   };
 
   return (
@@ -71,7 +64,7 @@ export default function WeekCalendar({ onDateSelect, entries }: Props) {
           return (
             <button
               key={idx}
-              onClick={() => handleDateSelect(date)}
+              onClick={() => onDateSelect(date)}
               className={`p-4 rounded-lg text-center space-y-1 ${
                 isToday ? 'bg-blue-50 border-2 border-blue-500' : 
                 hasEntry ? 'bg-blue-50' : 'hover:bg-gray-50'

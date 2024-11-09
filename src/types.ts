@@ -1,11 +1,51 @@
+export type Mood = 'happy' | 'neutral' | 'sad';
+export type CalendarView = 'year' | 'week';
+export type AccountType = 'checking' | 'savings' | 'credit' | 'cash';
+
 export interface DiaryEntry {
   id: string;
   content: string;
-  mood: 'happy' | 'neutral' | 'sad';
+  mood: Mood;
   date: string;
   tags: string[];
+  type: 'diary' | 'note' | 'template';
+  isPinned?: boolean;
   lastModified: string;
-  createdAt: string;
+}
+
+export interface Template {
+  id: string;
+  name: string;
+  content: string;
+  description: string;
+  icon: string;
+}
+
+export interface User {
+  name: string;
+  avatar: string;
+  preferences: {
+    theme: 'light' | 'dark';
+    sidebarCollapsed: boolean;
+  };
+}
+
+export interface FinanceEntry {
+  id: string;
+  amount: number;
+  category: string;
+  description: string;
+  date: string;
+  type: 'income' | 'expense';
+  account: AccountType;
+}
+
+export interface Account {
+  id: string;
+  name: string;
+  type: AccountType;
+  balance: number;
+  currency: string;
 }
 
 export interface Note {
@@ -14,7 +54,6 @@ export interface Note {
   content: string;
   tags: string[];
   lastModified: string;
-  createdAt: string;
 }
 
 export interface FlashCard {
@@ -24,29 +63,11 @@ export interface FlashCard {
   notes: Note[];
   children: FlashCard[];
   lastModified: string;
-  createdAt: string;
 }
 
-export interface DeletedCard extends FlashCard {
-  deletedAt: string;
-}
-
-export interface FinanceEntry {
+export interface TodoItem {
   id: string;
-  amount: number;
-  type: 'income' | 'expense';
-  category: string;
-  description?: string;
-  account: string;
+  content: string;
+  completed: boolean;
   date: string;
-}
-
-export type AccountType = 'checking' | 'savings' | 'credit' | 'cash';
-
-export interface Account {
-  id: string;
-  name: string;
-  type: AccountType;
-  balance: number;
-  currency: string;
 }

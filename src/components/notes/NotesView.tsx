@@ -11,7 +11,13 @@ interface Props {
   onDeleteCard: (cardId: string) => void;
 }
 
-export default function NotesView({ cards, onAddCard, onSelectCard, onEditCard, onDeleteCard }: Props) {
+export default function NotesView({ 
+  cards, 
+  onAddCard, 
+  onSelectCard, 
+  onEditCard, 
+  onDeleteCard 
+}: Props) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardName, setNewCardName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -80,7 +86,8 @@ export default function NotesView({ cards, onAddCard, onSelectCard, onEditCard, 
             </button>
             <button
               type="submit"
-              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              disabled={!newCardName.trim()}
+              className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
             >
               Create
             </button>
@@ -90,9 +97,9 @@ export default function NotesView({ cards, onAddCard, onSelectCard, onEditCard, 
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCards.map((card) => (
-          <FlashCard 
-            key={card.id} 
-            card={card} 
+          <FlashCard
+            key={card.id}
+            card={card}
             onClick={() => onSelectCard(card)}
             onEdit={onEditCard}
             onDelete={onDeleteCard}

@@ -5,13 +5,12 @@ import WeekCalendar from '../calendar/WeekCalendar';
 import DiaryEntry from '../DiaryEntry';
 import NewEntry from '../NewEntry';
 import type { DiaryEntry as DiaryEntryType } from '../../types';
-import { createDiaryEntry, updateDiaryEntry, deleteDiaryEntry } from '../../api/diary';
 
 interface Props {
   entries: DiaryEntryType[];
-  onNewEntry: (content: string, mood: 'happy' | 'neutral' | 'sad', date: string) => Promise<void>;
-  onDeleteEntry: (id: string) => Promise<void>;
-  onEditEntry: (id: string, content: string) => Promise<void>;
+  onNewEntry: (content: string, mood: 'happy' | 'neutral' | 'sad', date: string) => void;
+  onDeleteEntry: (id: string) => void;
+  onEditEntry: (id: string, content: string) => void;
 }
 
 export default function DiaryView({ entries, onNewEntry, onDeleteEntry, onEditEntry }: Props) {
@@ -29,35 +28,9 @@ export default function DiaryView({ entries, onNewEntry, onDeleteEntry, onEditEn
     }
   };
 
-  const handleEditEntry = async (id: string, content: string) => {
-    try {
-      setError(null);
-      await onEditEntry(id, content);
-    } catch (err) {
-      console.error('Failed to update entry:', err);
-      setError('Failed to update entry. Please try again.');
-    }
-  };
-
-  const handleDeleteEntry = async (id: string) => {
-    try {
-      setError(null);
-      await onDeleteEntry(id);
-    } catch (err) {
-      console.error('Failed to delete entry:', err);
-      setError('Failed to delete entry. Please try again.');
-    }
-  };
-
   const filteredEntries = entries.filter(entry => {
     const entryDate = new Date(entry.date);
-    const startOfDay = new Date(selectedDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(selectedDate);
-    endOfDay.setHours(23, 59, 59, 999);
-    
-    return entryDate >= startOfDay && entryDate <= endOfDay;
+    return entryDate.toDateString() === selectedDate.toDateString();
   });
 
   return (
@@ -119,8 +92,8 @@ export default function DiaryView({ entries, onNewEntry, onDeleteEntry, onEditEn
               <DiaryEntry
                 key={entry.id}
                 entry={entry}
-                onDelete={handleDeleteEntry}
-                onEdit={handleEditEntry}
+                onDelete={onDeleteEntry}
+                onEdit={onEditEntry}
               />
             ))}
           </div>
